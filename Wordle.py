@@ -2,12 +2,11 @@ import tkinter as tk
 from tkinter import messagebox
 import random
 
-# Colors
-COLOR_CORRECT = "#6aaa64"  # Green
-COLOR_PRESENT = "#c9b458"  # Yellow
-COLOR_ABSENT = "#787c7e"   # Gray
-COLOR_BG = "#121213"       # Dark Background
-COLOR_TEXT = "#ffffff"     # White
+COLOR_CORRECT = "#6aaa64"  
+COLOR_PRESENT = "#c9b458"  
+COLOR_ABSENT = "#787c7e"   
+COLOR_BG = "#121213"       
+COLOR_TEXT = "#ffffff"     
 
 class WordleGUI:
     def __init__(self, root):
@@ -16,17 +15,14 @@ class WordleGUI:
         self.root.geometry("400x600")
         self.root.configure(bg=COLOR_BG)
 
-        # Game State
         self.word_bank = ["DEBUG", "INPUT", "ARRAY", "BYTES", "VIRUS", "CODER", "PRINT", "BOARD"]
         self.secret_word = random.choice(self.word_bank).upper()
         self.current_guess_num = 0
         self.guesses = []
 
-        # GUI Setup
-        self.title_label = tk.Label(root, text="WORDLE", font=("Helvetica", 36, "bold"), bg=COLOR_BG, fg=COLOR_TEXT, pady=20)
+        self.title_label = tk.Label(root, text="Difuse the BOMB Wordle", font=("Helvetica", 36, "bold"), bg=COLOR_BG, fg=COLOR_TEXT, pady=20)
         self.title_label.pack()
 
-        # Grid for letters
         self.grid_frame = tk.Frame(root, bg=COLOR_BG)
         self.grid_frame.pack(pady=10)
         
@@ -41,7 +37,6 @@ class WordleGUI:
                 row_cells.append(cell)
             self.cells.append(row_cells)
 
-        # Input Area
         self.entry = tk.Entry(root, font=("Helvetica", 24), width=10, justify="center", insertbackground="white", bg="#3a3a3c", fg="white", bd=0)
         self.entry.pack(pady=20)
         self.entry.bind("<Return>", lambda event: self.submit_guess())
