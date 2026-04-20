@@ -2,12 +2,9 @@ import tkinter as tk
 from tkinter import messagebox
 import random
 
-# Computer science related word list
 WORDS = [
-    "python", "binary", "algorithm", "network", "database",
-    "compiler", "variable", "function", "integer", "boolean",
-    "debugging", "hardware", "software", "keyboard", "monitor",
-    "internet", "program", "syntax", "loop", "string"
+    "python", "binary", "network", "database", "variable", "function", "integer", "boolean", "debugging", "hardware", "keyboard",
+    "internet", "program", "loop", "string"
 ]
 
 TOTAL_ROUNDS = 5
