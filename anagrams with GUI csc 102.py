@@ -16,7 +16,7 @@ POINTS_TO_WIN = 3
 class AnagramGame:
     def __init__(self, root):
         self.root = root
-        self.root.title("Anagrams Game")
+        self.root.title("Anagrams")
         self.root.geometry("500x350")
         self.root.resizable(False, False)
 
@@ -25,7 +25,7 @@ class AnagramGame:
         self.current_word = ""
         self.used_words = []
 
-        self.title_label = tk.Label(root, text="Anagrams Game", font=("Arial", 20, "bold"))
+        self.title_label = tk.Label(root, text="Anagrams", font=("Arial", 20, "bold"))
         self.title_label.pack(pady=10)
 
         self.round_label = tk.Label(root, text="Round: 0/5", font=("Arial", 12))
