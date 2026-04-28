@@ -7,6 +7,9 @@
 from bomb_configs import *
 from bomb_phases import *
 
+import subprocess
+import sys
+
 ###########
 # functions
 ###########
@@ -32,7 +35,6 @@ def setup_phases():
     wires = Wires(component_wires, wires_target)
     button = Button(component_button_state, component_button_RGB, button_target, button_color, timer)
     gui.setButton(button)
-
     toggles = Toggles(component_toggles, toggles_target)
 
     timer.start()
@@ -40,6 +42,46 @@ def setup_phases():
     wires.start()
     button.start()
     toggles.start()
+
+
+def run_minigame(filename):
+    result = subprocess.run([sys.executable, filename])
+    return result.returncode == 0
+
+
+def run_riddler_games():
+    global strikes_left
+
+    games = [
+        ("anagram_game.py", "First test: Anagrams. Win 5 rounds to earn code piece 5."),
+        ("tic_tac_toe_game.py", "Second test: Tic-Tac-Toe. Beat the Riddler to earn code piece 4."),
+        ("wordle_game.py", "Third test: Wordle. Solve the word to earn code piece 2.")
+    ]
+
+    for filename, message in games:
+        gui._lscroll["text"] = message
+        gui.update()
+
+        won = run_minigame(filename)
+
+        if not won:
+            strike()
+            gui._lscroll["text"] = f"You failed {filename}.\nStrike added.\nStrikes left: {strikes_left}"
+            gui.update()
+
+            if strikes_left == 0:
+                turn_off()
+                gui.after(100, gui.conclusion, False)
+                return False
+
+    gui._lscroll["text"] = (
+        "You survived the Riddler's games.\n"
+        "Code pieces found: 5, 4, 2.\n"
+        "Now follow the riddle to find the final wire clue.\n"
+        "Pull the correct two wires to reveal the last digit."
+    )
+    gui.update()
+    return True
 
 
 def check_phases():
@@ -70,7 +112,11 @@ def check_phases():
         if toggles._defused:
             toggles._running = False
             active_phases -= 1
-            gui._lscroll["text"] = "Correct switches.\nNow solve the Riddler's games.\nCode piece 1: 5\nCode piece 2: 4\nCode piece 3: 2\nFind the final clue and pull the right wires."
+
+            games_won = run_riddler_games()
+
+            if not games_won:
+                return
 
         elif toggles._failed:
             strike()
@@ -82,7 +128,12 @@ def check_phases():
         if wires._defused:
             wires._running = False
             active_phases -= 1
-            gui._lscroll["text"] = "Correct wires pulled.\nFinal code piece: 6\nEnter the full code on the keypad."
+            gui._lscroll["text"] = (
+                "Correct wires pulled.\n"
+                "Final code piece: 6\n"
+                "Full code: 5426\n"
+                "Enter the full code on the keypad."
+            )
 
         elif wires._failed:
             strike()
