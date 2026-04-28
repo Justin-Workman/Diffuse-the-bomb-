@@ -1,92 +1,88 @@
-from tkinter import *
+import tkinter as tk
+from tkinter import messagebox
 import random
+import sys
 
-root = Tk()
-root.title("Tic Tac Toe")
+class TicTacToe:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Riddler Tic-Tac-Toe")
+        self.root.geometry("360x430")
 
-board = [""] * 9
-buttons = []
+        self.board = [""] * 9
+        self.buttons = []
 
-def check_winner(player):
-    win_combos = [
-        (0,1,2), (3,4,5), (6,7,8),
-        (0,3,6), (1,4,7), (2,5,8),
-        (0,4,8), (2,4,6)
-    ]
-    for combo in win_combos:
-        if board[combo[0]] == board[combo[1]] == board[combo[2]] == player:
-            return True
-    return False
+        title = tk.Label(root, text="BEAT THE RIDDLER", font=("Arial", 20, "bold"))
+        title.pack(pady=10)
 
-def check_tie():
-    return "" not in board
+        frame = tk.Frame(root)
+        frame.pack()
 
-def computer_move():
-    for i in range(9):
-        if board[i] == "":
-            board[i] = "O"
-            if check_winner("O"):
-                update_button(i, "O")
-                return
-            board[i] = ""
+        for i in range(9):
+            button = tk.Button(
+                frame,
+                text="",
+                font=("Arial", 28, "bold"),
+                width=4,
+                height=2,
+                command=lambda i=i: self.player_move(i)
+            )
+            button.grid(row=i // 3, column=i % 3)
+            self.buttons.append(button)
 
-    for i in range(9):
-        if board[i] == "":
-            board[i] = "X"
-            if check_winner("X"):
-                board[i] = "O"
-                update_button(i, "O")
-                return
-            board[i] = ""
+    def player_move(self, index):
+        if self.board[index] != "":
+            return
 
-    if board[4] == "":
-        update_button(4, "O")
-        return
+        self.board[index] = "X"
+        self.buttons[index].config(text="X")
 
-    empty = [i for i in range(9) if board[i] == ""]
-    if empty:
+        if self.check_winner("X"):
+            messagebox.showinfo("Code Piece Found", "You earned code piece: 4")
+            self.root.destroy()
+            sys.exit(0)
+
+        if "" not in self.board:
+            messagebox.showinfo("Tie", "Tie. No strike.")
+            self.reset_board()
+            return
+
+        self.riddler_move()
+
+        if self.check_winner("O"):
+            messagebox.showerror("Lost", "The Riddler beat you.")
+            self.root.destroy()
+            sys.exit(1)
+
+        if "" not in self.board:
+            messagebox.showinfo("Tie", "Tie. No strike.")
+            self.reset_board()
+
+    def riddler_move(self):
+        empty = [i for i, value in enumerate(self.board) if value == ""]
         move = random.choice(empty)
-        update_button(move, "O")
+        self.board[move] = "O"
+        self.buttons[move].config(text="O")
 
-def update_button(index, player):
-    board[index] = player
-    buttons[index]["text"] = player
-    buttons[index]["state"] = DISABLED
+    def check_winner(self, symbol):
+        wins = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ]
 
-    if check_winner(player):
-        status.config(text=f"{player} wins!")
-        disable_all()
-    elif check_tie():
-        status.config(text="It's a tie!")
-    elif player == "X":
-        root.after(500, computer_move)
+        for combo in wins:
+            if all(self.board[i] == symbol for i in combo):
+                return True
 
-def player_move(index):
-    if board[index] == "":
-        update_button(index, "X")
+        return False
 
-def disable_all():
-    for b in buttons:
-        b["state"] = DISABLED
+    def reset_board(self):
+        self.board = [""] * 9
+        for button in self.buttons:
+            button.config(text="")
 
-def reset():
-    global board
-    board = [""] * 9
-    for b in buttons:
-        b["text"] = ""
-        b["state"] = NORMAL
-    status.config(text="Your turn!")
-
-for i in range(9):
-    button = Button(root, text="", font=("Arial", 20), width=5, height=2,
-                    command=lambda i=i: player_move(i))
-    button.grid(row=i//3, column=i%3)
-    buttons.append(button)
-
-status = Label(root, text="Your turn!", font=("Arial", 14))
-status.grid(row=3, column=0, columnspan=3)
-
-reset_btn = Button(root, text="Reset", command=reset)
-reset_btn.grid(row=4, column=0, columnspan=3)
-
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = TicTacToe(root)
+    root.mainloop()
