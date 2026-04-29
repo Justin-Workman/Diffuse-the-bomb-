@@ -4,6 +4,9 @@ import random
 import time
 from dataclasses import dataclass
 
+# =========================================================
+# OPTIONAL RASPBERRY PI HARDWARE SUPPORT
+# =========================================================
 
 try:
     import board
@@ -16,7 +19,9 @@ except ImportError:
     RPI_ENABLED = False
 
 
-
+# =========================================================
+# CONFIG
+# =========================================================
 
 WINDOW_BG = "#050505"
 TEXT_GREEN = "#00FF66"
@@ -49,7 +54,10 @@ ANAGRAM_WORDS = [
 ]
 
 
-#
+# =========================================================
+# GAME STATE
+# =========================================================
+
 @dataclass
 class GameState:
     strikes: int = TOTAL_STRIKES
@@ -67,12 +75,17 @@ class GameState:
     last_keypress: float = 0
 
 
-
+# =========================================================
 # MAIN GAME
+# =========================================================
 
 class BombGame:
 
-        def __init__(self, root):
+    # =====================================================
+    # INIT
+    # =====================================================
+
+    def __init__(self, root):
 
         self.root = root
         self.state = GameState()
@@ -88,7 +101,9 @@ class BombGame:
 
         self.root.after(100, self.hardware_loop)
 
-
+    # =====================================================
+    # UI SETUP
+    # =====================================================
 
     def setup_ui(self):
 
@@ -118,7 +133,9 @@ class BombGame:
         self.content = tk.Frame(self.root, bg=WINDOW_BG)
         self.content.pack(expand=True)
 
-
+    # =====================================================
+    # HARDWARE SETUP
+    # =====================================================
 
     def setup_hardware(self):
 
@@ -194,7 +211,9 @@ class BombGame:
 
         self.previous_keys = []
 
-
+    # =====================================================
+    # CORE LOOP
+    # =====================================================
 
     def hardware_loop(self):
 
@@ -249,7 +268,10 @@ class BombGame:
 
         self.root.after(100, self.hardware_loop)
 
-    
+    # =====================================================
+    # TIMER
+    # =====================================================
+
     def start_timer(self):
 
         if not self.state.active:
@@ -270,7 +292,10 @@ class BombGame:
 
         self.root.after(1000, self.start_timer)
 
-    
+    # =====================================================
+    # GENERAL UTILITIES
+    # =====================================================
+
     def clear_content(self):
 
         for widget in self.content.winfo_children():
@@ -319,7 +344,10 @@ class BombGame:
 
         self.root.destroy()
 
-    
+    # =====================================================
+    # INTRO
+    # =====================================================
+
     def show_intro(self):
 
         self.clear_content()
@@ -344,7 +372,10 @@ class BombGame:
 
         label.pack(expand=True)
 
-    
+    # =====================================================
+    # ACTIVATE BOMB
+    # =====================================================
+
     def activate_bomb(self):
 
         self.state.active = True
@@ -369,7 +400,9 @@ class BombGame:
 
         label.pack(expand=True)
 
-    
+    # =====================================================
+    # ANAGRAM GAME
+    # =====================================================
 
     def show_anagram_game(self):
 
@@ -446,7 +479,9 @@ class BombGame:
         else:
             self.take_strike("Incorrect Anagram")
 
-
+    # =====================================================
+    # TIC TAC TOE
+    # =====================================================
 
     def show_ttt(self):
 
@@ -574,6 +609,10 @@ class BombGame:
             for a, b, c in wins
         )
 
+    # =====================================================
+    # WORDLE GAME
+    # =====================================================
+
     def show_wordle(self):
 
         self.state.stage = "WORDLE"
@@ -656,7 +695,10 @@ class BombGame:
 
             self.show_wordle()
 
-  
+    # =====================================================
+    # FINAL STAGE
+    # =====================================================
+
     def show_final_stage(self):
 
         self.state.stage = "FINAL"
@@ -705,11 +747,18 @@ class BombGame:
 
             self.code_display.config(text="")
 
+    # =====================================================
+    # ESCAPE KEY
+    # =====================================================
 
     def quit_game(self, event=None):
 
         self.root.destroy()
 
+
+# =========================================================
+# MAIN
+# =========================================================
 
 if __name__ == "__main__":
 
