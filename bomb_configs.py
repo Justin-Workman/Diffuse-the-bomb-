@@ -1,18 +1,15 @@
 #################################
 # CSC 102 Defuse the Bomb Project
 # Configuration file
-# Team:
 #################################
 
-# constants
 DEBUG = False
-RPi = True            # True when running on Raspberry Pi
+RPi = True
 SHOW_BUTTONS = False
-COUNTDOWN = 300      # 5 minutes
-NUM_STRIKES = 3      # 3 failed attempts total
-NUM_PHASES = 4       # keypad, wires, button, toggles
+COUNTDOWN = 300
+NUM_STRIKES = 3
+NUM_PHASES = 4
 
-# imports
 from random import choice
 
 if RPi:
@@ -21,17 +18,11 @@ if RPi:
     from digitalio import DigitalInOut, Direction, Pull
     from adafruit_matrixkeypad import Matrix_Keypad
 
-#################################
-# setup the electronic components
-#################################
-
-# 7-segment display
 if RPi:
     i2c = board.I2C()
     component_7seg = Seg7x4(i2c)
     component_7seg.brightness = 0.5
 
-# keypad
 if RPi:
     keypad_cols = [DigitalInOut(i) for i in (board.D10, board.D9, board.D11)]
     keypad_rows = [DigitalInOut(i) for i in (board.D5, board.D6, board.D13, board.D19)]
@@ -45,7 +36,6 @@ if RPi:
 
     component_keypad = Matrix_Keypad(keypad_rows, keypad_cols, keypad_keys)
 
-# jumper wires
 if RPi:
     component_wires = [
         DigitalInOut(i) for i in
@@ -56,7 +46,6 @@ if RPi:
         pin.direction = Direction.INPUT
         pin.pull = Pull.DOWN
 
-# pushbutton
 if RPi:
     component_button_state = DigitalInOut(board.D4)
     component_button_state.direction = Direction.INPUT
@@ -71,7 +60,6 @@ if RPi:
         pin.direction = Direction.OUTPUT
         pin.value = True
 
-# toggle switches
 if RPi:
     component_toggles = [
         DigitalInOut(i) for i in
@@ -82,26 +70,19 @@ if RPi:
         pin.direction = Direction.INPUT
         pin.pull = Pull.DOWN
 
-#################################
-# target generation
-#################################
-
 def genSerial():
     return "RIDDLER5426"
 
 def genTogglesTarget():
-    # Correct toggle pattern.
-    # 1 = switch ON/up
-    # 0 = switch OFF/down
+    # Correct sequence after reversed switch reading:
+    # Physical switches should likely be DOWN, UP, DOWN, DOWN
     return [1, 0, 1, 1]
 
 def genWiresTarget():
-    # Correct wires to pull.
-    # Wire numbers start at 1 from left to right.
+    # Pull wires 2 and 4
     return [2, 4]
 
 def genKeypadTarget():
-    # Final defusal code
     return "5426"
 
 button_color = choice(["R", "G", "B"])
@@ -118,8 +99,6 @@ def genButtonTarget():
 
     return b_target
 
-###############################
-
 serial = genSerial()
 toggles_target = genTogglesTarget()
 wires_target = genWiresTarget()
@@ -131,5 +110,4 @@ boot_text = f"THE RIDDLER HAS TAKEN YOUR TEAMMATE.\n"\
             f"Press the silver button to begin the test.\n"\
             f"Flip the switches into the correct sequence.\n"\
             f"Find each piece of the code.\n"\
-            f"Final code: 5426\n"\
             f"Serial number: {serial}\n"
