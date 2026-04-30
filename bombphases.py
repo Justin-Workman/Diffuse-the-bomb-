@@ -218,9 +218,9 @@ class Button(PhaseThread):
     def __init__(self, component_state, component_rgb, target, color, timer):
         super().__init__("Button", component_state, target)
         self._value = False
-        self._pressed = False
         self._timer = timer
         self._rgb = component_rgb
+        self._starting_value = None
 
     def run(self):
         self._running = True
@@ -230,22 +230,25 @@ class Button(PhaseThread):
             self._rgb[1].value = True
             self._rgb[2].value = True
 
+        sleep(0.3)
+        self._starting_value = self._component.value
+
         while self._running:
             self._value = self._component.value
 
-            if self._value:
-                self._pressed = True
-            else:
-                if self._pressed:
-                    self._defused = True
-                    self._timer.start_countdown()
-                    self._pressed = False
+            # This activates when the button reading changes from its starting value.
+            # This works whether your button is wired active-high or active-low.
+            if self._value != self._starting_value:
+                self._defused = True
+                self._timer.start_countdown()
 
-            sleep(0.1)
+            sleep(0.05)
 
     def __str__(self):
         if self._defused:
             return "ACTIVATED"
-        return "Pressed" if self._value else "Waiting"
-            return "ACTIVATED"
-        return "Pressed" if self._value else "Waiting"
+
+        if self._starting_value is None:
+            return "Waiting"
+
+        return f"Waiting raw={self._value}"
