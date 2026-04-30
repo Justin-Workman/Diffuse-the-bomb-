@@ -1,7 +1,6 @@
 #################################
 # CSC 102 Defuse the Bomb Project
 # Main program
-# Team:
 #################################
 
 from bomb_configs import *
@@ -9,10 +8,6 @@ from bomb_phases import *
 
 import subprocess
 import sys
-
-###########
-# functions
-###########
 
 def bootup():
     gui._lscroll["text"] = boot_text.replace("\x00", "")
@@ -23,7 +18,6 @@ def bootup():
         check_phases()
     else:
         gui._lscroll["text"] += "\n\nTEST MODE: RPi is False, so hardware will not run."
-
 
 def setup_phases():
     global timer, keypad, wires, button, toggles
@@ -43,11 +37,9 @@ def setup_phases():
     button.start()
     toggles.start()
 
-
 def run_minigame(filename):
     result = subprocess.run([sys.executable, filename])
     return result.returncode == 0
-
 
 def run_riddler_games():
     global strikes_left
@@ -82,7 +74,6 @@ def run_riddler_games():
     )
     gui.update()
     return True
-
 
 def check_phases():
     global active_phases
@@ -165,11 +156,9 @@ def check_phases():
 
     gui.after(100, check_phases)
 
-
 def strike():
     global strikes_left
     strikes_left -= 1
-
 
 def turn_off():
     timer._running = False
@@ -185,11 +174,6 @@ def turn_off():
         for pin in button._rgb:
             pin.value = True
 
-
-######
-# MAIN
-######
-
 window = Tk()
 gui = Lcd(window)
 
@@ -197,5 +181,4 @@ strikes_left = NUM_STRIKES
 active_phases = NUM_PHASES
 
 gui.after(100, bootup)
-
 window.mainloop()
