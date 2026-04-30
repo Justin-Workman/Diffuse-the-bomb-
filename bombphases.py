@@ -30,67 +30,25 @@ class Lcd(Frame):
         self.pack(fill=BOTH, expand=True)
 
     def setup(self):
-        self._lcode = Label(
-            self,
-            bg="black",
-            fg="#00ff00",
-            font=("Courier New", 24),
-            text="Code: ____"
-        )
+        self._lcode = Label(self, bg="black", fg="#00ff00", font=("Courier New", 24), text="Code: ____")
         self._lcode.grid(row=1, column=0, columnspan=3, sticky=W, padx=20, pady=10)
 
-        self._ltoggles = Label(
-            self,
-            bg="black",
-            fg="#00ff00",
-            font=("Courier New", 18),
-            text="Switches: waiting"
-        )
+        self._ltoggles = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18), text="Switches: waiting")
         self._ltoggles.grid(row=2, column=0, columnspan=2, sticky=W, padx=20)
 
-        self._lkeypad = Label(
-            self,
-            bg="black",
-            fg="#00ff00",
-            font=("Courier New", 18),
-            text="Keypad: "
-        )
+        self._lkeypad = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18), text="Keypad: ")
         self._lkeypad.grid(row=3, column=0, columnspan=2, sticky=W, padx=20)
 
-        self._lwires = Label(
-            self,
-            bg="black",
-            fg="#00ff00",
-            font=("Courier New", 18),
-            text="Wires: waiting"
-        )
+        self._lwires = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18), text="Wires: waiting")
         self._lwires.grid(row=4, column=0, columnspan=2, sticky=W, padx=20)
 
-        self._lbutton = Label(
-            self,
-            bg="black",
-            fg="#00ff00",
-            font=("Courier New", 18),
-            text="Silver Button: waiting"
-        )
+        self._lbutton = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18), text="Silver Button: waiting")
         self._lbutton.grid(row=5, column=0, columnspan=2, sticky=W, padx=20)
 
-        self._lstrikes = Label(
-            self,
-            bg="black",
-            fg="#00ff00",
-            font=("Courier New", 18),
-            text="Strikes left: 3"
-        )
+        self._lstrikes = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18), text="Strikes left: 3")
         self._lstrikes.grid(row=6, column=0, sticky=W, padx=20)
 
-        self._ltimer = Label(
-            self,
-            bg="black",
-            fg="red",
-            font=("Courier New", 26, "bold"),
-            text="05:00"
-        )
+        self._ltimer = Label(self, bg="black", fg="red", font=("Courier New", 26, "bold"), text="05:00")
         self._ltimer.grid(row=6, column=2, sticky=SE, padx=30, pady=30)
 
     def setTimer(self, timer):
@@ -110,14 +68,7 @@ class Lcd(Frame):
             text = "BOOM\nTHE RIDDLER WINS"
             color = "red"
 
-        label = Label(
-            self,
-            text=text,
-            fg=color,
-            bg="black",
-            font=("Courier New", 32, "bold"),
-            justify=CENTER
-        )
+        label = Label(self, text=text, fg=color, bg="black", font=("Courier New", 32, "bold"), justify=CENTER)
         label.pack(expand=True)
 
 
@@ -136,12 +87,12 @@ class Timer(PhaseThread):
     def __init__(self, component, initial_value):
         super().__init__("Timer", component)
         self._value = initial_value
-        self._started = False
+        self._countdown_started = False
         self._min = "05"
         self._sec = "00"
 
     def start_countdown(self):
-        self._started = True
+        self._countdown_started = True
 
     def run(self):
         self._running = True
@@ -152,7 +103,7 @@ class Timer(PhaseThread):
             if RPi:
                 self._component.print(str(self))
 
-            if self._started:
+            if self._countdown_started:
                 sleep(1)
                 self._value -= 1
 
@@ -250,8 +201,6 @@ class Toggles(PhaseThread):
             self._value = []
 
             for switch in self._component:
-                # If switch values are backwards on your box,
-                # change this line to: self._value.append(0 if switch.value else 1)
                 self._value.append(1 if switch.value else 0)
 
             if self._value == self._target:
@@ -296,5 +245,7 @@ class Button(PhaseThread):
 
     def __str__(self):
         if self._defused:
+            return "ACTIVATED"
+        return "Pressed" if self._value else "Waiting"
             return "ACTIVATED"
         return "Pressed" if self._value else "Waiting"
