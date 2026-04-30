@@ -1,19 +1,8 @@
-#################################
-# CSC 102 Defuse the Bomb Project
-#################################
-
 from bomb_configs import *
 
 from tkinter import *
-import tkinter
 from threading import Thread
 from time import sleep
-import os
-import sys
-
-#########
-# classes
-#########
 
 class Lcd(Frame):
     def __init__(self, window):
@@ -23,9 +12,6 @@ class Lcd(Frame):
         self._timer = None
         self._button = None
 
-        self.setupBoot()
-
-    def setupBoot(self):
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=2)
         self.columnconfigure(2, weight=1)
@@ -33,31 +19,26 @@ class Lcd(Frame):
         self._lscroll = Label(self, bg="black", fg="white",
                               font=("Courier New", 14), text="", justify=LEFT)
         self._lscroll.grid(row=0, column=0, columnspan=3, sticky=W)
+
         self.pack(fill=BOTH, expand=True)
 
     def setup(self):
-        self._ltimer = Label(self, bg="black", fg="#00ff00",
-                             font=("Courier New", 18))
+        self._ltimer = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18))
         self._ltimer.grid(row=1, column=0, columnspan=3, sticky=W)
 
-        self._lkeypad = Label(self, bg="black", fg="#00ff00",
-                              font=("Courier New", 18))
+        self._lkeypad = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18))
         self._lkeypad.grid(row=2, column=0, columnspan=3, sticky=W)
 
-        self._lwires = Label(self, bg="black", fg="#00ff00",
-                             font=("Courier New", 18))
+        self._lwires = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18))
         self._lwires.grid(row=3, column=0, columnspan=3, sticky=W)
 
-        self._lbutton = Label(self, bg="black", fg="#00ff00",
-                              font=("Courier New", 18))
+        self._lbutton = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18))
         self._lbutton.grid(row=4, column=0, columnspan=3, sticky=W)
 
-        self._ltoggles = Label(self, bg="black", fg="#00ff00",
-                               font=("Courier New", 18))
+        self._ltoggles = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18))
         self._ltoggles.grid(row=5, column=0, columnspan=2, sticky=W)
 
-        self._lstrikes = Label(self, bg="black", fg="#00ff00",
-                               font=("Courier New", 18))
+        self._lstrikes = Label(self, bg="black", fg="#00ff00", font=("Courier New", 18))
         self._lstrikes.grid(row=5, column=2, sticky=W)
 
     def setTimer(self, timer):
@@ -67,15 +48,11 @@ class Lcd(Frame):
         self._button = button
 
     def conclusion(self, success=False):
-        if success:
-            text = "YOU DEFUSED THE BOMB\nRIDDLER DEFEATED"
-            color = "#00ff00"
-        else:
-            text = "BOOM\nTHE RIDDLER WINS"
-            color = "red"
-
         for widget in self.winfo_children():
             widget.destroy()
+
+        text = "YOU DEFUSED THE BOMB\nRIDDLER DEFEATED" if success else "BOOM\nTHE RIDDLER WINS"
+        color = "#00ff00" if success else "red"
 
         label = Label(self, text=text, fg=color, bg="black",
                       font=("Courier New", 28))
@@ -97,11 +74,9 @@ class Timer(PhaseThread):
     def __init__(self, component, initial_value):
         super().__init__("Timer", component)
         self._value = initial_value
-        self._paused = False
 
     def run(self):
         self._running = True
-
         while self._running:
             sleep(1)
             self._value -= 1
@@ -119,7 +94,6 @@ class Keypad(PhaseThread):
 
     def run(self):
         self._running = True
-
         while self._running:
             if self._component.pressed_keys:
                 key = self._component.pressed_keys[0]
@@ -127,7 +101,6 @@ class Keypad(PhaseThread):
 
                 if self._value == self._target:
                     self._defused = True
-
                 elif self._value != self._target[:len(self._value)]:
                     self._failed = True
 
@@ -144,10 +117,8 @@ class Wires(PhaseThread):
 
     def run(self):
         self._running = True
-
         while self._running:
             self._value = []
-
             for i, wire in enumerate(self._component):
                 if not wire.value:
                     self._value.append(i + 1)
@@ -161,7 +132,6 @@ class Wires(PhaseThread):
         return str(self._value)
 
 
-# 🔥 FIXED TOGGLES CLASS
 class Toggles(PhaseThread):
     def __init__(self, component, target):
         super().__init__("Toggles", component, target)
@@ -169,16 +139,12 @@ class Toggles(PhaseThread):
 
     def run(self):
         self._running = True
-
         while self._running:
             self._value = []
 
             for switch in self._component:
-                # 🔥 THIS LINE FIXES MOST WIRING ISSUES
+                # reversed for wiring
                 self._value.append(0 if switch.value else 1)
-
-            # Debug print (you can remove later)
-            print("Toggle State:", self._value)
 
             if self._value == self._target:
                 self._defused = True
@@ -192,14 +158,11 @@ class Toggles(PhaseThread):
 class Button(PhaseThread):
     def __init__(self, component_state, component_rgb, target, color, timer):
         super().__init__("Button", component_state, target)
-        self._rgb = component_rgb
-        self._timer = timer
         self._value = False
         self._pressed = False
 
     def run(self):
         self._running = True
-
         while self._running:
             self._value = self._component.value
 
