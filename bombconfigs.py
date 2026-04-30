@@ -1,14 +1,10 @@
-#################################
-# CSC 102 Defuse the Bomb Project
-# Configuration file
-#################################
-
 DEBUG = False
 RPi = True
 SHOW_BUTTONS = False
+
 COUNTDOWN = 300
 NUM_STRIKES = 3
-NUM_PHASES = 4
+NUM_PHASES = 3
 
 from random import choice
 
@@ -21,7 +17,7 @@ if RPi:
 if RPi:
     i2c = board.I2C()
     component_7seg = Seg7x4(i2c)
-    component_7seg.brightness = 0.5
+    component_7seg.brightness = 0.7
 
 if RPi:
     keypad_cols = [DigitalInOut(i) for i in (board.D10, board.D9, board.D11)]
@@ -74,12 +70,11 @@ def genSerial():
     return "RIDDLER5426"
 
 def genTogglesTarget():
-    # Correct sequence after reversed switch reading:
-    # Physical switches should likely be DOWN, UP, DOWN, DOWN
-    return [1, 0, 1, 1]
+    # 13 in binary = 1101
+    # Switch 1 UP, Switch 2 UP, Switch 3 DOWN, Switch 4 UP
+    return [1, 1, 0, 1]
 
 def genWiresTarget():
-    # Pull wires 2 and 4
     return [2, 4]
 
 def genKeypadTarget():
@@ -88,16 +83,7 @@ def genKeypadTarget():
 button_color = choice(["R", "G", "B"])
 
 def genButtonTarget():
-    global button_color
-
-    b_target = None
-
-    if button_color == "G":
-        b_target = [n for n in serial if n.isdigit()][0]
-    elif button_color == "B":
-        b_target = [n for n in serial if n.isdigit()][-1]
-
-    return b_target
+    return None
 
 serial = genSerial()
 toggles_target = genTogglesTarget()
@@ -105,9 +91,4 @@ wires_target = genWiresTarget()
 keypad_target = genKeypadTarget()
 button_target = genButtonTarget()
 
-boot_text = f"THE RIDDLER HAS TAKEN YOUR TEAMMATE.\n"\
-            f"Solve his riddles. Beat his games.\n"\
-            f"Press the silver button to begin the test.\n"\
-            f"Flip the switches into the correct sequence.\n"\
-            f"Find each piece of the code.\n"\
-            f"Serial number: {serial}\n"
+boot_text = '"If you would like to see your friend again,\nI suggest you press the silver button."\n\n- Riddler'
