@@ -128,6 +128,10 @@ def _minimax(b, is_max, depth=0):
     return max(scores) if is_max else min(scores)
 
 def _best_move(b):
+    if random.randint(1, 100) <= 50:
+        empty = [i for i in range(9) if b[i] == ""]
+        return random.choice(empty) if empty else None
+
     best, move = -999, None
     for i in range(9):
         if b[i] == "":
