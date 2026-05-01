@@ -23,7 +23,6 @@ except ImportError:
 
 COUNTDOWN      = 300
 NUM_STRIKES    = 3
-FINAL_CODE     = "5426"
 TOGGLES_TARGET = [1, 1, 0, 1]
 WIRES_TARGET   = [2, 4]
 
@@ -159,6 +158,11 @@ class BombGame:
         self._sw = self.root.winfo_screenwidth()
         self._sh = self.root.winfo_screenheight()
 
+        # Generate a fresh random 4-digit code every game (digits 0-9)
+        # d[0] = toggles, d[1] = TTT, d[2] = wordle, d[3] = wires
+        self._d = [random.randint(0, 9) for _ in range(4)]
+        self._final_code = "".join(str(x) for x in self._d)
+
         self._build_ui()
         self._setup_hardware()
         self._show_boot()
@@ -273,6 +277,7 @@ class BombGame:
                 vals = [1 if t.value else 0 for t in self._toggles]
                 if vals == TOGGLES_TARGET:
                     self.state.stage = "ANAGRAM"   # guard: stop re-entering
+                    self._set_code(f"{self._d[0]}___")
                     self.root.after(50, self._show_anagram)
 
             elif s == "WIRES":
@@ -416,6 +421,7 @@ class BombGame:
                             fg=BG, bg=GREEN if up else DIM)
                         if self._toggle_state == TOGGLES_TARGET:
                             self.state.stage = "ANAGRAM"
+                            self._set_code(f"{self._d[0]}___")
                             self.root.after(400, self._show_anagram)
                     return cb
                 b = tk.Button(row, text=f"SW {i+1}\n▼  DN",
@@ -528,7 +534,7 @@ class BombGame:
                  fg=GREEN, bg=BG, font=("Courier New", 26, "bold")).pack(pady=(0, 4))
         tk.Label(c, text='"You better get three in a row, or like Mufasa you will go."  — Riddler',
                  fg=DIM, bg=BG, font=("Courier New", 11)).pack()
-        tk.Label(c, text="You are  X  ·  Riddler is  O  ·  You must WIN",
+        tk.Label(c, text="You are  X  ·  Riddler is  O  ·  WIN to earn a code digit  ·  Draws restart free",
                  fg=CYAN, bg=BG, font=("Courier New", 13)).pack(pady=(4, 12))
 
         size = CELL * 3 + PAD * 2
@@ -585,15 +591,14 @@ class BombGame:
         if _ttt_winner(self.state.ttt_board, "X"):
             self._ttt_over = True
             self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "X"))
-            self._set_code("54__")
-            self._ttt_status.config(text="YOU WIN!  Digit: 4", fg=GREEN)
+            self._set_code(f"{self._d[0]}{self._d[1]}__")
+            self._ttt_status.config(text=f"YOU WIN!  Digit: {self._d[1]}", fg=GREEN)
             self.root.after(1800, self._show_wordle)
             return
         if all(self.state.ttt_board):
             self._ttt_over = True
-            self._ttt_status.config(text="DRAW — no mercy.", fg=RED)
-            if self._strike("Tic Tac Toe draw — you needed to WIN."):
-                self.root.after(800, self._show_ttt)
+            self._ttt_status.config(text="DRAW — no strike, try again!", fg=YELLOW)
+            self.root.after(1400, self._show_ttt)
             return
 
         self._ttt_status.config(text="Riddler is thinking...", fg=DIM)
@@ -613,9 +618,8 @@ class BombGame:
             return
         if all(self.state.ttt_board):
             self._ttt_over = True
-            self._ttt_status.config(text="DRAW — no mercy.", fg=RED)
-            if self._strike("Tic Tac Toe draw — you needed to WIN."):
-                self.root.after(800, self._show_ttt)
+            self._ttt_status.config(text="DRAW — no strike, try again!", fg=YELLOW)
+            self.root.after(1400, self._show_ttt)
             return
         self._ttt_status.config(text="Your move", fg=GREEN)
 
@@ -747,8 +751,8 @@ class BombGame:
 
         if guess == self.state.w_secret:
             self._w_over = True
-            self._set_code("542_")
-            self._w_status.config(text="✓  CORRECT!  Digit: 2", fg=GREEN)
+            self._set_code(f"{self._d[0]}{self._d[1]}{self._d[2]}_")
+            self._w_status.config(text=f"✓  CORRECT!  Digit: {self._d[2]}", fg=GREEN)
             self.root.after(1800, self._show_wires)
             return
         if self.state.w_attempt >= WORDLE_ROWS:
@@ -822,7 +826,7 @@ class BombGame:
                 self.root.after(500, self._show_wires)
 
     def _wires_solved(self):
-        self._set_code("5426")
+        self._set_code(self._final_code)
         self._show_final()
 
     # ─────────────────────────────────────────────────────
@@ -836,7 +840,7 @@ class BombGame:
         c = self._C()
         tk.Label(c, text="ENTER THE CODE",
                  fg=RED, bg=BG, font=("Courier New", 26, "bold")).pack(pady=(0, 10))
-        tk.Label(c, text="Correct wires pulled.\nFinal digit: 6\nFull code: 5426",
+        tk.Label(c, text=f"Correct wires pulled.\nFinal digit: {self._d[3]}\nFull code: {self._final_code}",
                  fg="white", bg=BG, font=("Courier New", 17), justify="center").pack(pady=8)
 
         self._kp_display = tk.Label(c, text="_ _ _ _",
@@ -877,7 +881,7 @@ class BombGame:
             self.state.kp_input = ""
             self._kp_status.config(text="Cleared.", fg=DIM)
         elif key == "#":
-            if self.state.kp_input == FINAL_CODE:
+            if self.state.kp_input == self._final_code:
                 self._kp_status.config(text="✓  CODE ACCEPTED", fg=GREEN)
                 self.root.after(1200, self._win)
             else:
@@ -885,13 +889,13 @@ class BombGame:
                 self._kp_status.config(text="✗  WRONG CODE", fg=RED)
                 self._strike("Wrong code entered!")
         else:
-            if len(self.state.kp_input) < len(FINAL_CODE):
+            if len(self.state.kp_input) < len(self._final_code):
                 self.state.kp_input += str(key)
         self._refresh_kp()
 
     def _refresh_kp(self):
         filled = list(self.state.kp_input)
-        blanks = ["_"] * (len(FINAL_CODE) - len(filled))
+        blanks = ["_"] * (len(self._final_code) - len(filled))
         self._kp_display.config(text="  ".join(filled + blanks))
 
 
@@ -903,3 +907,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     game = BombGame(root)
     root.mainloop()
+
