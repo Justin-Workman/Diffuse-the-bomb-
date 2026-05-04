@@ -403,9 +403,8 @@ class BombGame:
         """Debounce: only activate if button is still held after 80 ms."""
         if RPi and self.state.stage == "BOOT" and self._btn.value:
             self._activate()
-        else:
-            # Button was a bounce or released — keep polling
-            self.root.after(100, self._hw_loop)
+        # ALWAYS keep the loop alive regardless of bounce or real press
+        self.root.after(100, self._hw_loop)
 
     def _poll_keypad(self):
         current  = list(self._keypad.pressed_keys)
@@ -683,9 +682,9 @@ class BombGame:
                        'your friend will be in the ground."\n\n— Riddler'),
                  fg="white", bg=BG, font=("Courier New", 17),
                  justify="center").pack(pady=(0, 16))
-        tk.Label(c, text="SET SWITCHES TO BINARY  1 3",
+        tk.Label(c, text="REPRESENT THE NUMBER  1 3  IN BINARY",
                  fg=RED, bg=BG, font=("Courier New", 22, "bold")).pack(pady=6)
-        tk.Label(c, text="[ UP = 1  ·  DOWN = 0  ·  Target: 1101 = 13 ]",
+        tk.Label(c, text="[ UP = 1   DOWN = 0   4 switches   figure it out ]",
                  fg=CYAN, bg=BG, font=("Courier New", 14)).pack(pady=4)
 
         if not RPi:
@@ -1189,3 +1188,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     game = BombGame(root)
     root.mainloop()
+
