@@ -911,32 +911,32 @@ def _play_lose_sound():
 # win screen
 
 
-from PIL import Image, ImageTk
-
 def _patched_win(self):
     _play_win_sound()
     self.state.active = False
     self._clear()
     c = self._C()
 
-    img = Image.open("congrats_screen.png")
-    img = img.resize((600, 350))
-    photo = ImageTk.PhotoImage(img)
+    canvas = tk.Canvas(c, width=600, height=350, bg=BG, highlightthickness=0)
+    canvas.pack()
 
-    panel = tk.Label(c, image=photo, bg=BG)
-    panel.image = photo
-    panel.pack()
+    # simple “congrats screen” graphic (no files needed)
+    canvas.create_rectangle(0, 0, 600, 350, fill="black", outline="green")
+    canvas.create_text(300, 120, text="CONGRATULATIONS",
+                       fill="green", font=("Courier New", 34, "bold"))
+    canvas.create_text(300, 180, text="YOU OUTSMARTED THE RIDDLER",
+                       fill="cyan", font=("Courier New", 20, "bold"))
 
-    tk.Label(c, text="YOU OUTSMARTED THE RIDDLER",
-             fg=CYAN, bg=BG,
-             font=("Courier New", 22, "bold")).pack(pady=20)
+    # “victory burst” effect
+    for i in range(10):
+        x = 300 + (i - 5) * 20
+        y = 250
+        canvas.create_oval(x, y, x+10, y+10, fill="green", outline="")
 
 
 
 # lose screen
 
-
-from PIL import Image, ImageTk
 
 def _patched_explode(self, reason=""):
     _play_lose_sound()
@@ -944,24 +944,23 @@ def _patched_explode(self, reason=""):
     self._clear()
     c = self._C()
 
-    img = Image.open("explosion.jpeg")
-    img = img.resize((600, 350))
-    photo = ImageTk.PhotoImage(img)
+    canvas = tk.Canvas(c, width=600, height=350, bg=BG, highlightthickness=0)
+    canvas.pack()
 
-    panel = tk.Label(c, image=photo, bg=BG)
-    panel.image = photo
-    panel.pack()
+    # explosion effect (pure Tkinter)
+    canvas.create_rectangle(0, 0, 600, 350, fill="black")
+    canvas.create_oval(180, 80, 420, 320, fill="red", outline="orange", width=6)
+    canvas.create_text(300, 180, text="💥 BOOM 💥",
+                       fill="yellow", font=("Courier New", 40, "bold"))
 
-    tk.Label(c, text="B O O M",
-             fg=RED, bg=BG,
-             font=("Courier New", 60, "bold")).pack()
+    canvas.create_text(300, 260, text="THE RIDDLER WINS",
+                       fill="red", font=("Courier New", 28, "bold"))
 
-    tk.Label(c, text=f"THE RIDDLER WINS\n{reason}",
-             fg=YELLOW, bg=BG,
-             font=("Courier New", 18)).pack(pady=10)
+    canvas.create_text(300, 300, text=reason,
+                       fill="white", font=("Courier New", 14))
 
 
-# wire colors 
+# wire colors
 
 
 def _patch_wire_colors(self):
@@ -973,6 +972,7 @@ def _patch_wire_colors(self):
                     btn.config(bg=colors[i], fg="white")
     except:
         pass
+
 
 
 
@@ -992,3 +992,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     game = BombGame(root)
     root.mainloop()
+
