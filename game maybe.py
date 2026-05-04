@@ -1022,6 +1022,78 @@ def _wrapped_show_wires(self):
 
 BombGame._show_wires = _wrapped_show_wires
 
+# =========================
+# WIN / LOSE PATCH (FIXED)
+# =========================
+
+import threading
+import time
+
+def _play_win_sound():
+    try:
+        import winsound
+        winsound.Beep(1200, 200)
+        winsound.Beep(1600, 200)
+        winsound.Beep(2000, 300)
+    except:
+        pass
+
+def _play_lose_sound():
+    try:
+        import winsound
+        winsound.Beep(400, 400)
+        winsound.Beep(250, 600)
+    except:
+        pass
+
+
+def patched_win(self):
+    _play_win_sound()
+    self.state.active = False
+    self._clear()
+    c = self._C()
+
+    canvas = tk.Canvas(c, width=600, height=350, bg=BG, highlightthickness=0)
+    canvas.pack()
+
+    canvas.create_text(300, 140, text="CONGRATULATIONS",
+                       fill="green", font=("Courier New", 34, "bold"))
+    canvas.create_text(300, 200, text="YOU OUTSMARTED THE RIDDLER",
+                       fill="cyan", font=("Courier New", 20, "bold"))
+
+
+_siren_running = False
+
+def siren_loop():
+    global _siren_running
+    while _siren_running:
+        print("\a")
+        time.sleep(0.25)
+
+
+def patched_explode(self, reason=""):
+    global _siren_running
+    _siren_running = True
+
+    threading.Thread(target=siren_loop, daemon=True).start()
+
+    self.state.active = False
+    self._clear()
+    c = self._C()
+
+    canvas = tk.Canvas(c, width=600, height=350, bg=BG, highlightthickness=0)
+    canvas.pack()
+
+    canvas.create_text(300, 150, text="💥 BOOM 💥",
+                       fill="red", font=("Courier New", 40, "bold"))
+    canvas.create_text(300, 230, text=f"THE RIDDLER WINS\n{reason}",
+                       fill="white", font=("Courier New", 16))
+
+
+# APPLY PATCHES
+BombGame._win = patched_win
+BombGame._explode = patched_explode
+
 if __name__ == "__main__":
     root = tk.Tk()
     game = BombGame(root)
