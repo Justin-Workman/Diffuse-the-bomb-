@@ -876,7 +876,8 @@ class BombGame:
 # add-ons
 
 import sys
-
+import threading
+import time
 
 # Sound effects 
 
@@ -937,17 +938,51 @@ def _patched_win(self):
 
 # lose screen
 
+_siren_running = False
+
+def _siren_loop(self):
+    global _siren_running
+    while _siren_running:
+        try:
+            self.root.bell()
+        except:
+            pass
+        time.sleep(0.25)
+        try:
+            self.root.bell()
+        except:
+            pass
+        time.sleep(0.25)
+        
+def _flash_red(self):
+    def loop(i=0):
+        if not self.state.active:
+            return
+        color = RED if i % 2 == 0 else "black"
+        try:
+            self.root.configure(bg=color)
+        except:
+            pass
+        self.root.after(200, lambda: loop(i + 1))
+
+    loop()
+    
 
 def _patched_explode(self, reason=""):
-    _play_lose_sound()
+    global _siren_running
+    _siren_running = True
+
+    threading.Thread(target=_siren_loop, args=(self,), daemon=True).start()
+
     self.state.active = False
     self._clear()
     c = self._C()
 
+    self._flash_red()
+
     canvas = tk.Canvas(c, width=600, height=350, bg=BG, highlightthickness=0)
     canvas.pack()
 
-    # explosion effect (pure Tkinter)
     canvas.create_rectangle(0, 0, 600, 350, fill="black")
     canvas.create_oval(180, 80, 420, 320, fill="red", outline="orange", width=6)
     canvas.create_text(300, 180, text="💥 BOOM 💥",
@@ -958,7 +993,6 @@ def _patched_explode(self, reason=""):
 
     canvas.create_text(300, 300, text=reason,
                        fill="white", font=("Courier New", 14))
-
 
 # wire colors
 
