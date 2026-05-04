@@ -157,9 +157,23 @@ class BombGame:
         self._build_ui()
         self._setup_hardware()
         self._show_boot()
-        self.root.after(100, self._hw_loop)
+if self.root.winfo_exists():
+    self.root.after(100, self._hw_loop)
+    
+def _flash_red(self):
+    def loop(i=0):
+        if not self.state.active:
+            return
+        color = RED if i % 2 == 0 else "black"
+        try:
+            self.root.configure(bg=color)
+        except:
+            pass
+        self.root.after(200, lambda: loop(i + 1))
 
+    loop()
 
+    
 
     def _build_ui(self):
         self.root.rowconfigure(0, weight=0)
@@ -944,12 +958,12 @@ def _siren_loop(self):
     global _siren_running
     while _siren_running:
         try:
-            self.root.bell()
+            print("\a")
         except:
             pass
         time.sleep(0.25)
         try:
-            self.root.bell()
+            print("\a")
         except:
             pass
         time.sleep(0.25)
