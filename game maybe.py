@@ -121,7 +121,7 @@ def _best_move(b):
         empty = [i for i in range(9) if b[i] == ""]
         return random.choice(empty) if empty else None
 
-    best, move = -999, None
+    best, move = -99, None
     for i in range(9):
         if b[i] == "":
             b[i] = "O"
@@ -378,7 +378,7 @@ class BombGame:
                  justify="center").pack(pady=(0, 16))
         tk.Label(c, text="SET SWITCHES TO BINARY  1 3",
                  fg=RED, bg=BG, font=("Courier New", 22, "bold")).pack(pady=6)
-        tk.Label(c, text="[ UP = 1  ·  DOWN = 0  ·  Target: 1 1 0 1 ]",
+        tk.Label(c, text="[ UP = 1  ·  DOWN = 0  ·  Target: 13",
                  fg=CYAN, bg=BG, font=("Courier New", 14)).pack(pady=4)
 
         if not RPi:
