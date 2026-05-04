@@ -157,21 +157,7 @@ class BombGame:
         self._build_ui()
         self._setup_hardware()
         self._show_boot()
-if self.root.winfo_exists():
-    self.root.after(100, self._hw_loop)
-    
-def _flash_red(self):
-    def loop(i=0):
-        if not self.state.active:
-            return
-        color = RED if i % 2 == 0 else "black"
-        try:
-            self.root.configure(bg=color)
-        except:
-            pass
-        self.root.after(200, lambda: loop(i + 1))
 
-    loop()
 
     
 
