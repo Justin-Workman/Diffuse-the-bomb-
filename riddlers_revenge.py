@@ -248,7 +248,8 @@ class BombGame:
 
         self.root.title("Riddler's Revenge")
         self.root.configure(bg=BG)
-        self.root.attributes("-fullscreen", True)
+        self.root.attributes("-fullscreen", True) 
+        self.root.attributes("-topmost", True)
         self.root.bind("<Escape>", lambda e: self.root.destroy())
 
         self.root.update_idletasks()
