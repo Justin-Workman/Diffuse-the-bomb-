@@ -1,43 +1,54 @@
 import tkinter as tk
-from tkinter import messagebox
 import random
-from dataclasses import dataclass
+import threading
+import time
+import sys
+import os
+import struct
+import wave
+import tempfile
+from dataclasses import dataclass, field
 
-
+# ── Hardware detection ─────────────────────────────────────────────────────────
 try:
-    import board
-    import digitalio
+    import board, digitalio
     from adafruit_ht16k33.segments import Seg7x4
     from adafruit_matrixkeypad import Matrix_Keypad
     RPi = True
 except ImportError:
     RPi = False
 
+# ── Audio backend (pygame preferred, fallback to beep) ────────────────────────
+AUDIO_OK = False
+try:
+    import pygame
+    pygame.mixer.pre_init(44100, -16, 1, 512)
+    pygame.mixer.init()
+    AUDIO_OK = True
+except Exception:
+    pass
 
+# ── Constants ─────────────────────────────────────────────────────────────────
+COUNTDOWN       = 300
+NUM_STRIKES     = 3
+TOGGLES_TARGET  = [1, 1, 0, 1]
+WIRES_TARGET    = [2, 4]
 
-
-COUNTDOWN      = 300
-NUM_STRIKES    = 3
-TOGGLES_TARGET = [1, 1, 0, 1]
-WIRES_TARGET   = [2, 4]
-
-WORD_BANK    = ["array", "model", "bulid", "input", "debug"]
-ANAGRAM_POOL = [
-    "python", "school", "binary", "decode", "system", 'signal'
-]
+WORD_BANK    = ["array", "model", "build", "input", "debug"]
+ANAGRAM_POOL = ["python", "school", "binary", "decode", "system", "signal"]
 
 ANAGRAM_ROUNDS   = 2
 ANAGRAM_ATTEMPTS = 3
 WORDLE_ROWS      = 6
 WORDLE_COLS      = 5
 
-BG         = "#050505"
-GREEN      = "#00FF66"
-RED        = "#FF3333"
-YELLOW     = "#FFD633"
-CYAN       = "#00FFFF"
-DIM        = "#3A3A3C"
-INPUT_BG   = "#0D0D1A"
+BG        = "#050505"
+GREEN     = "#00FF66"
+RED       = "#FF3333"
+YELLOW    = "#FFD633"
+CYAN      = "#00FFFF"
+DIM       = "#3A3A3C"
+INPUT_BG  = "#0D0D1A"
 
 T_CORRECT  = "#538D4E"
 T_PRESENT  = "#B59F3B"
@@ -55,6 +66,114 @@ KB_ROWS = [
 ]
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  SOUND ENGINE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _make_sine(freq, duration_ms, volume=0.6, sample_rate=44100):
+    """Return raw 16-bit PCM bytes for a sine wave."""
+    n = int(sample_rate * duration_ms / 1000)
+    import math
+    data = bytearray()
+    for i in range(n):
+        v = int(32767 * volume * math.sin(2 * math.pi * freq * i / sample_rate))
+        data += struct.pack('<h', v)
+    return bytes(data)
+
+def _make_wav_buffer(segments, sample_rate=44100):
+    """segments = list of (freq, ms) or (freq, ms, volume)"""
+    raw = b""
+    for seg in segments:
+        if len(seg) == 2:
+            raw += _make_sine(seg[0], seg[1], 0.6, sample_rate)
+        else:
+            raw += _make_sine(seg[0], seg[1], seg[2], sample_rate)
+
+    buf = bytearray()
+    # WAV header
+    data_size = len(raw)
+    buf += b'RIFF'
+    buf += struct.pack('<I', 36 + data_size)
+    buf += b'WAVE'
+    buf += b'fmt '
+    buf += struct.pack('<I', 16)
+    buf += struct.pack('<H', 1)           # PCM
+    buf += struct.pack('<H', 1)           # mono
+    buf += struct.pack('<I', sample_rate)
+    buf += struct.pack('<I', sample_rate * 2)
+    buf += struct.pack('<H', 2)
+    buf += struct.pack('<H', 16)
+    buf += b'data'
+    buf += struct.pack('<I', data_size)
+    buf += raw
+    return bytes(buf)
+
+def _load_sound(segments):
+    if not AUDIO_OK:
+        return None
+    try:
+        import io
+        wav_bytes = _make_wav_buffer(segments)
+        snd = pygame.mixer.Sound(io.BytesIO(wav_bytes))
+        return snd
+    except Exception:
+        return None
+
+# Pre-build all sounds
+_SND_WIN   = None
+_SND_LOSE  = None
+_SND_TICK  = None
+_SND_TICK_FAST = None
+_SND_STRIKE = None
+_SND_CORRECT = None
+
+def _init_sounds():
+    global _SND_WIN, _SND_LOSE, _SND_TICK, _SND_TICK_FAST, _SND_STRIKE, _SND_CORRECT
+    if not AUDIO_OK:
+        return
+    # WIN: ascending fanfare
+    _SND_WIN = _load_sound([
+        (523, 120), (659, 120), (784, 120), (1047, 300),
+        (0, 60),
+        (784, 100), (1047, 100), (1319, 350),
+    ])
+    # LOSE: descending doom
+    _SND_LOSE = _load_sound([
+        (440, 180), (370, 200), (300, 250), (220, 400),
+        (0, 80),
+        (180, 500),
+    ])
+    # TICK: short click
+    _SND_TICK = _load_sound([(880, 40, 0.3)])
+    # FAST TICK (last 30 seconds)
+    _SND_TICK_FAST = _load_sound([(1100, 35, 0.45)])
+    # STRIKE
+    _SND_STRIKE = _load_sound([
+        (200, 100), (150, 150), (100, 200),
+    ])
+    # CORRECT
+    _SND_CORRECT = _load_sound([
+        (659, 100), (784, 100), (1047, 180),
+    ])
+
+def _play(snd):
+    if AUDIO_OK and snd:
+        try:
+            snd.play()
+        except Exception:
+            pass
+
+def play_win():    _play(_SND_WIN)
+def play_lose():   _play(_SND_LOSE)
+def play_tick(fast=False):
+    _play(_SND_TICK_FAST if fast else _SND_TICK)
+def play_strike(): _play(_SND_STRIKE)
+def play_correct(): _play(_SND_CORRECT)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  STATE
+# ══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class State:
@@ -87,7 +206,9 @@ class State:
             self.wire_pulled = []
 
 
-
+# ══════════════════════════════════════════════════════════════════════════════
+#  TTT HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 
 _TTT_WINS = [
     (0,1,2),(3,4,5),(6,7,8),
@@ -120,7 +241,6 @@ def _best_move(b):
     if random.randint(1, 100) <= 50:
         empty = [i for i in range(9) if b[i] == ""]
         return random.choice(empty) if empty else None
-
     best, move = -99, None
     for i in range(9):
         if b[i] == "":
@@ -132,13 +252,16 @@ def _best_move(b):
     return move
 
 
-
+# ══════════════════════════════════════════════════════════════════════════════
+#  MAIN GAME CLASS
+# ══════════════════════════════════════════════════════════════════════════════
 
 class BombGame:
 
     def __init__(self, root):
         self.root  = root
         self.state = State()
+        self._anim_ids = []   # track after() IDs for cancel on screen change
 
         self.root.title("Riddler's Revenge")
         self.root.configure(bg=BG)
@@ -149,17 +272,15 @@ class BombGame:
         self._sw = self.root.winfo_screenwidth()
         self._sh = self.root.winfo_screenheight()
 
-        # Generate a fresh random 4-digit code every game (digits 0-9)
-        # d[0] = toggles, d[1] = TTT, d[2] = wordle, d[3] = wires
         self._d = [random.randint(0, 9) for _ in range(4)]
         self._final_code = "".join(str(x) for x in self._d)
 
+        _init_sounds()
         self._build_ui()
         self._setup_hardware()
         self._show_boot()
 
-
-    
+    # ── UI skeleton ───────────────────────────────────────────────────────────
 
     def _build_ui(self):
         self.root.rowconfigure(0, weight=0)
@@ -185,8 +306,7 @@ class BombGame:
             font=("Courier New", 26, "bold"), fg=YELLOW, bg=BG)
         self._strike_lbl.pack(side="right")
 
-        tk.Frame(self.root, bg=DIM, height=1).grid(
-            row=0, column=0, sticky="sew")
+        tk.Frame(self.root, bg=DIM, height=1).grid(row=0, column=0, sticky="sew")
 
         self.content = tk.Frame(self.root, bg=BG)
         self.content.grid(row=1, column=0, sticky="nsew")
@@ -194,6 +314,12 @@ class BombGame:
         self.content.columnconfigure(0, weight=1)
 
     def _clear(self):
+        # Cancel any pending animation callbacks
+        for aid in self._anim_ids:
+            try: self.root.after_cancel(aid)
+            except: pass
+        self._anim_ids = []
+
         for w in self.content.winfo_children():
             w.destroy()
         for seq in ("<Key>", "<Return>", "<BackSpace>"):
@@ -201,7 +327,6 @@ class BombGame:
             except: pass
 
     def _C(self):
-        """Centered frame — every stage builds widgets inside this."""
         f = tk.Frame(self.content, bg=BG)
         f.place(relx=0.5, rely=0.5, anchor="center")
         return f
@@ -214,7 +339,7 @@ class BombGame:
         self._stage_lbl.config(text=self.state.stage)
         self._strike_lbl.config(text=f"STRIKES: {self.state.strikes_left}")
 
-
+    # ── Hardware ──────────────────────────────────────────────────────────────
 
     def _setup_hardware(self):
         if not RPi:
@@ -241,43 +366,35 @@ class BombGame:
         self._btn.direction = digitalio.Direction.INPUT
         self._btn.pull      = digitalio.Pull.DOWN
 
-        cols         = [digitalio.DigitalInOut(p) for p in (board.D10, board.D9, board.D11)]
-        rows         = [digitalio.DigitalInOut(p) for p in (board.D5, board.D6, board.D13, board.D19)]
-        keys         = ((1,2,3),(4,5,6),(7,8,9),("*",0,"#"))
-        self._keypad = Matrix_Keypad(rows, cols, keys)
+        cols = [digitalio.DigitalInOut(p) for p in (board.D10, board.D9, board.D11)]
+        rows = [digitalio.DigitalInOut(p) for p in (board.D5, board.D6, board.D13, board.D19)]
+        keys = ((1,2,3),(4,5,6),(7,8,9),("*",0,"#"))
+        self._keypad  = Matrix_Keypad(rows, cols, keys)
         self._prev_kp = []
-
-
 
     def _hw_loop(self):
         self._update_top()
-
         if RPi:
             s = self.state.stage
-
             if s == "BOOT" and self._btn.value:
                 self._activate()
-
             elif s == "TOGGLES":
                 vals = [1 if t.value else 0 for t in self._toggles]
                 if vals == TOGGLES_TARGET:
-                    self.state.stage = "ANAGRAM"   # guard: stop re-entering
+                    self.state.stage = "ANAGRAM"
                     self._set_code(f"{self._d[0]}___")
                     self.root.after(50, self._show_anagram)
-
             elif s == "WIRES":
                 pulled = sorted([i+1 for i, w in enumerate(self._wires) if not w.value])
                 if pulled == sorted(WIRES_TARGET):
-                    self.state.stage = "FINAL"     # guard
+                    self.state.stage = "FINAL"
                     self._wires_solved()
                 elif len(pulled) >= len(WIRES_TARGET) and pulled != sorted(WIRES_TARGET):
-                    self.state.stage = "WIRES_ERR" # guard: stop repeated strikes
+                    self.state.stage = "WIRES_ERR"
                     if self._strike("Wrong wires pulled!"):
                         self.root.after(500, self._show_wires)
-
             elif s == "FINAL":
                 self._poll_keypad()
-
         self.root.after(100, self._hw_loop)
 
     def _poll_keypad(self):
@@ -287,7 +404,7 @@ class BombGame:
         for key in new_keys:
             self._keypad_key(key)
 
-
+    # ── Timer ─────────────────────────────────────────────────────────────────
 
     def _start_timer(self):
         self.state.active = True
@@ -299,57 +416,212 @@ class BombGame:
         if self.state.timer <= 0:
             self._explode("TIME OUT")
             return
+
+        # Tick sound
+        fast = self.state.timer <= 30
+        play_tick(fast)
+
         self.state.timer -= 1
         m, s = divmod(self.state.timer, 60)
-        colour = RED if self.state.timer <= 60 else (YELLOW if self.state.timer <= 120 else RED)
+
+        if self.state.timer <= 30:
+            colour = RED
+        elif self.state.timer <= 60:
+            colour = YELLOW
+        else:
+            colour = RED
+
         self._timer_lbl.config(text=f"{m:02}:{s:02}", fg=colour)
+
+        # Pulse the timer label when under 60s
+        if self.state.timer <= 60:
+            self._timer_lbl.config(fg=RED)
+            aid = self.root.after(250, lambda: self._timer_lbl.config(fg=YELLOW) if self.state.active else None)
+            self._anim_ids.append(aid)
+
         if RPi:
             self._seg.print(f"{m:02}{s:02}")
+
         self.root.after(1000, self._tick)
 
-
+    # ── Strikes & end conditions ───────────────────────────────────────────────
 
     def _strike(self, reason="Strike!"):
+        play_strike()
         self.state.strikes_left -= 1
         self._update_top()
+        # Flash strike label
+        self._flash_label(self._strike_lbl, RED, YELLOW, 4)
         if self.state.strikes_left <= 0:
             self._explode(reason)
             return False
-        messagebox.showwarning(
-            "STRIKE", f"{reason}\n\n{self.state.strikes_left} strike(s) remaining.")
+        # Show strike overlay instead of messagebox
+        self._show_strike_overlay(reason)
         return True
 
+    def _show_strike_overlay(self, reason):
+        """Non-blocking strike warning that disappears after 2s."""
+        overlay = tk.Toplevel(self.root)
+        overlay.overrideredirect(True)
+        overlay.configure(bg="#220000")
+        overlay.attributes("-topmost", True)
+        w, h = 480, 160
+        x = (self._sw - w) // 2
+        y = (self._sh - h) // 2
+        overlay.geometry(f"{w}x{h}+{x}+{y}")
+        tk.Label(overlay, text="⚡  S T R I K E  ⚡",
+                 fg=RED, bg="#220000", font=("Courier New", 26, "bold")).pack(pady=(18, 4))
+        tk.Label(overlay, text=reason,
+                 fg=YELLOW, bg="#220000", font=("Courier New", 14)).pack()
+        tk.Label(overlay, text=f"{self.state.strikes_left} strike(s) remaining",
+                 fg="white", bg="#220000", font=("Courier New", 12)).pack(pady=6)
+        overlay.after(2000, overlay.destroy)
+
+    def _flash_label(self, lbl, col_a, col_b, times):
+        def _do(n):
+            if n <= 0:
+                return
+            lbl.config(fg=col_a if n % 2 == 0 else col_b)
+            self.root.after(120, lambda: _do(n - 1))
+        _do(times * 2)
+
+    # ── EXPLODE (lose screen) ─────────────────────────────────────────────────
+
     def _explode(self, reason=""):
+        play_lose()
         self.state.active = False
         self._clear()
         c = self._C()
-        tk.Label(c, text="B O O M",
-                 fg=RED, bg=BG, font=("Courier New", 72, "bold")).pack()
-        tk.Label(c, text=f"THE RIDDLER WINS\n{reason}",
-                 fg=YELLOW, bg=BG, font=("Courier New", 20)).pack(pady=20)
+
+        canvas = tk.Canvas(c, width=700, height=400, bg="black", highlightthickness=0)
+        canvas.pack()
+
+        # Background
+        canvas.create_rectangle(0, 0, 700, 400, fill="#0A0000", outline=RED, width=4)
+
+        # Draw explosion circles (decorative)
+        for i in range(8):
+            import math
+            angle = i * (360 / 8) * math.pi / 180
+            rx = 350 + int(90 * math.cos(angle))
+            ry = 120 + int(50 * math.sin(angle))
+            r = random.randint(12, 28)
+            canvas.create_oval(rx-r, ry-r, rx+r, ry+r, fill=YELLOW, outline=RED)
+
+        canvas.create_text(350, 110, text="💥  B O O M  💥",
+                           fill=RED, font=("Courier New", 50, "bold"))
+        canvas.create_text(350, 210, text="THE RIDDLER WINS",
+                           fill=YELLOW, font=("Courier New", 26, "bold"))
+        canvas.create_text(350, 260, text=reason,
+                           fill="white", font=("Courier New", 16))
+        canvas.create_text(350, 310, text="Press Escape to quit",
+                           fill=DIM, font=("Courier New", 12))
+
+        # Flashing red border animation
+        self._boom_flash(canvas, 0)
+
+        # Restart button
+        tk.Button(c, text="PLAY AGAIN",
+                  fg=BG, bg=RED,
+                  activeforeground=BG, activebackground=YELLOW,
+                  font=("Courier New", 14, "bold"),
+                  relief="flat", padx=20, pady=10,
+                  command=self._restart).pack(pady=(12, 0))
+
+    def _boom_flash(self, canvas, tick):
+        colors = [RED, YELLOW, "#FF6600", RED, "#FF0000"]
+        col = colors[tick % len(colors)]
+        canvas.config(highlightthickness=6, highlightbackground=col)
+        aid = self.root.after(300, lambda: self._boom_flash(canvas, tick + 1))
+        self._anim_ids.append(aid)
+
+    # ── WIN SCREEN ────────────────────────────────────────────────────────────
 
     def _win(self):
+        play_win()
         self.state.active = False
         self._clear()
         c = self._C()
-        tk.Label(c, text="D E F U S E D",
-                 fg=GREEN, bg=BG, font=("Courier New", 60, "bold")).pack()
-        tk.Label(c, text="YOU OUTSMARTED THE RIDDLER",
-                 fg=CYAN, bg=BG, font=("Courier New", 22)).pack(pady=20)
 
+        canvas = tk.Canvas(c, width=700, height=400, bg="black", highlightthickness=0)
+        canvas.pack()
 
+        canvas.create_rectangle(0, 0, 700, 400, fill="#000A05", outline=GREEN, width=4)
+
+        # Star/sparkle decorations
+        for _ in range(18):
+            x = random.randint(30, 670)
+            y = random.randint(20, 380)
+            r = random.randint(3, 9)
+            canvas.create_oval(x-r, y-r, x+r, y+r,
+                               fill=random.choice([GREEN, CYAN, YELLOW]),
+                               outline="")
+
+        canvas.create_text(350, 100, text="✔  D E F U S E D  ✔",
+                           fill=GREEN, font=("Courier New", 44, "bold"))
+        canvas.create_text(350, 185, text="YOU OUTSMARTED THE RIDDLER",
+                           fill=CYAN, font=("Courier New", 22, "bold"))
+        canvas.create_text(350, 240, text=f"Code entered: {self._final_code}",
+                           fill=YELLOW, font=("Courier New", 16))
+        canvas.create_text(350, 300, text="Gotham is safe... for now.",
+                           fill="white", font=("Courier New", 14, "italic"))
+        canvas.create_text(350, 360, text="Press Escape to quit",
+                           fill=DIM, font=("Courier New", 11))
+
+        # Twinkling animation
+        self._sparkle(canvas, 0)
+
+        tk.Button(c, text="PLAY AGAIN",
+                  fg=BG, bg=GREEN,
+                  activeforeground=BG, activebackground=CYAN,
+                  font=("Courier New", 14, "bold"),
+                  relief="flat", padx=20, pady=10,
+                  command=self._restart).pack(pady=(12, 0))
+
+    def _sparkle(self, canvas, tick):
+        # Animate a random sparkle dot
+        try:
+            x = random.randint(30, 670)
+            y = random.randint(20, 380)
+            r = random.randint(2, 6)
+            dot = canvas.create_oval(x-r, y-r, x+r, y+r,
+                                     fill=random.choice([GREEN, CYAN, YELLOW]),
+                                     outline="")
+            canvas.after(400, lambda: canvas.delete(dot))
+        except Exception:
+            return
+        aid = self.root.after(180, lambda: self._sparkle(canvas, tick + 1))
+        self._anim_ids.append(aid)
+
+    # ── Restart ───────────────────────────────────────────────────────────────
+
+    def _restart(self):
+        self._clear()
+        self.state = State()
+        self._d = [random.randint(0, 9) for _ in range(4)]
+        self._final_code = "".join(str(x) for x in self._d)
+        self._timer_lbl.config(text="05:00", fg=RED)
+        self._code_lbl.config(text="CODE: ____")
+        self._show_boot()
+
+    # ── BOOT SCREEN ───────────────────────────────────────────────────────────
 
     def _show_boot(self):
         self.state.stage = "BOOT"
         self._clear()
         c = self._C()
-        tk.Label(c, text="RIDDLER'S REVENGE",
-                 fg=GREEN, bg=BG, font=("Courier New", 38, "bold")).pack(pady=(0, 20))
+
+        # Animated title
+        title_lbl = tk.Label(c, text="RIDDLER'S REVENGE",
+                 fg=GREEN, bg=BG, font=("Courier New", 38, "bold"))
+        title_lbl.pack(pady=(0, 20))
+
         tk.Label(c,
                  text=('"If you would like to see your friend again,\n'
                        'I suggest you press the silver button."\n\n— Riddler'),
                  fg="white", bg=BG, font=("Courier New", 18),
                  justify="center").pack(pady=10)
+
         if not RPi:
             tk.Button(c, text="[ PRESS TO START ]",
                       fg=BG, bg=GREEN,
@@ -360,11 +632,29 @@ class BombGame:
             self.root.bind("<Return>", lambda e: self._activate())
             self.root.bind("<space>",  lambda e: self._activate())
 
+        # Pulse the title
+        self._pulse_label(title_lbl, GREEN, CYAN)
+
+    def _pulse_label(self, lbl, c1, c2):
+        """Gently alternate a label between two colors (boot screen only)."""
+        def _do(use_c1=True):
+            if self.state.stage != "BOOT":
+                return
+            try:
+                lbl.config(fg=c1 if use_c1 else c2)
+            except Exception:
+                return
+            aid = self.root.after(700, lambda: _do(not use_c1))
+            self._anim_ids.append(aid)
+        _do()
+
     def _activate(self):
         self._start_timer()
+        if RPi:
+            self._hw_loop()
         self._show_toggles()
 
-
+    # ── TOGGLES ───────────────────────────────────────────────────────────────
 
     def _show_toggles(self):
         self.state.stage = "TOGGLES"
@@ -378,7 +668,7 @@ class BombGame:
                  justify="center").pack(pady=(0, 16))
         tk.Label(c, text="SET SWITCHES TO BINARY  1 3",
                  fg=RED, bg=BG, font=("Courier New", 22, "bold")).pack(pady=6)
-        tk.Label(c, text="[ UP = 1  ·  DOWN = 0  ·  Target: 13",
+        tk.Label(c, text="[ UP = 1  ·  DOWN = 0  ·  Target: 1101 = 13 ]",
                  fg=CYAN, bg=BG, font=("Courier New", 14)).pack(pady=4)
 
         if not RPi:
@@ -397,6 +687,7 @@ class BombGame:
                             text=f"SW {idx+1}\n{'▲  UP' if up else '▼  DN'}",
                             fg=BG, bg=GREEN if up else DIM)
                         if self._toggle_state == TOGGLES_TARGET:
+                            play_correct()
                             self.state.stage = "ANAGRAM"
                             self._set_code(f"{self._d[0]}___")
                             self.root.after(400, self._show_anagram)
@@ -410,7 +701,7 @@ class BombGame:
                 b.pack(side="left", padx=12)
                 self._toggle_btns.append(b)
 
-
+    # ── ANAGRAM ───────────────────────────────────────────────────────────────
 
     def _show_anagram(self):
         self.state.stage       = "ANAGRAM"
@@ -465,6 +756,7 @@ class BombGame:
         guess = self._ana_entry.get().strip().lower()
         self._ana_entry.delete(0, "end")
         if guess == self.state.anagram_word:
+            play_correct()
             self.state.anagram_rounds += 1
             if self.state.anagram_rounds >= ANAGRAM_ROUNDS:
                 self._ana_status.config(text="✓  Both solved!  Moving on...", fg=GREEN)
@@ -482,16 +774,14 @@ class BombGame:
             if self.state.anagram_tries >= ANAGRAM_ATTEMPTS:
                 self._ana_status.config(
                     text=f"✗  Failed.  Word was: {self.state.anagram_word.upper()}", fg=RED)
-                if self._strike(f"Anagram failed!"):
-                    self.root.after(400, self._show_anagram)
+                if self._strike("Anagram failed!"):
+                    self.root.after(2400, self._show_anagram)
             else:
                 self._ana_status.config(
                     text=f"✗  Wrong.  {rem} attempt{'s' if rem != 1 else ''} left.", fg=RED)
                 self._ana_entry.focus()
 
-
-    # TIC TAC TOE
- 
+    # ── TIC TAC TOE ───────────────────────────────────────────────────────────
 
     def _show_ttt(self):
         self.state.stage     = "TTT"
@@ -566,6 +856,7 @@ class BombGame:
         if _ttt_winner(self.state.ttt_board, "X"):
             self._ttt_over = True
             self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "X"))
+            play_correct()
             self._set_code(f"{self._d[0]}{self._d[1]}__")
             self._ttt_status.config(text=f"YOU WIN!  Digit: {self._d[1]}", fg=GREEN)
             self.root.after(1800, self._show_wordle)
@@ -589,7 +880,7 @@ class BombGame:
             self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "O"))
             self._ttt_status.config(text="RIDDLER WINS.  Strike.", fg=RED)
             if self._strike("The Riddler won Tic Tac Toe!"):
-                self.root.after(800, self._show_ttt)
+                self.root.after(2400, self._show_ttt)
             return
         if all(self.state.ttt_board):
             self._ttt_over = True
@@ -598,9 +889,7 @@ class BombGame:
             return
         self._ttt_status.config(text="Your move", fg=GREEN)
 
-
-    # WORDLE
-
+    # ── WORDLE ────────────────────────────────────────────────────────────────
 
     def _show_wordle(self):
         self.state.stage     = "WORDLE"
@@ -612,7 +901,6 @@ class BombGame:
         self._w_key_map      = {}
         self._clear()
 
-        # Scale tiles to screen: height minus ~220px for headers+status+keyboard
         tile_sz   = max(36, min(62, (self._sh - 220) // WORDLE_ROWS))
         tile_font = max(13, tile_sz // 2)
         key_h     = 1 if tile_sz < 50 else 2
@@ -725,6 +1013,7 @@ class BombGame:
         self.state.w_current  = ""
 
         if guess == self.state.w_secret:
+            play_correct()
             self._w_over = True
             self._set_code(f"{self._d[0]}{self._d[1]}{self._d[2]}_")
             self._w_status.config(text=f"✓  CORRECT!  Digit: {self._d[2]}", fg=GREEN)
@@ -734,16 +1023,14 @@ class BombGame:
             self._w_over = True
             self._w_status.config(
                 text=f"✗  FAILED — Word was: {self.state.w_secret.upper()}", fg=RED)
-            if self._strike(f"Wordle failed!"):
-                self.root.after(1000, self._show_wordle)
+            if self._strike("Wordle failed!"):
+                self.root.after(2400, self._show_wordle)
             return
         rem = WORDLE_ROWS - self.state.w_attempt
         self._w_status.config(
             text=f"{rem} attempt{'s' if rem != 1 else ''} remaining", fg=YELLOW)
 
-
-    # WIRES
-
+    # ── WIRES ─────────────────────────────────────────────────────────────────
 
     def _show_wires(self):
         self.state.stage       = "WIRES"
@@ -763,11 +1050,14 @@ class BombGame:
             row = tk.Frame(c, bg=BG)
             row.pack(pady=8)
             self._wire_btns = []
+            wire_labels = ["RED", "WHITE", "BLUE", "GREEN", "YELLOW"]
             for i, wc in enumerate(WIRE_COLORS):
                 num = i + 1
-                b = tk.Button(row, text=f"WIRE {num}",
-                              fg=BG if wc != "#EEEEEE" else "#111",
-                              bg=wc, activeforeground=BG, activebackground=wc,
+                text_col = BG if wc != "#EEEEEE" else "#111"
+                b = tk.Button(row,
+                              text=f"WIRE {num}\n{wire_labels[i]}",
+                              fg=text_col, bg=wc,
+                              activeforeground=BG, activebackground=wc,
                               font=("Courier New", 13, "bold"),
                               width=9, height=3, relief="flat",
                               command=lambda n=num: self._toggle_wire(n))
@@ -780,9 +1070,10 @@ class BombGame:
     def _toggle_wire(self, num):
         if num in self.state.wire_pulled:
             self.state.wire_pulled.remove(num)
+            wc = WIRE_COLORS[num-1]
             self._wire_btns[num-1].config(
-                bg=WIRE_COLORS[num-1],
-                fg=BG if WIRE_COLORS[num-1] != "#EEEEEE" else "#111")
+                bg=wc,
+                fg=BG if wc != "#EEEEEE" else "#111")
         else:
             self.state.wire_pulled.append(num)
             self._wire_btns[num-1].config(bg=DIM, fg="#999")
@@ -792,21 +1083,20 @@ class BombGame:
             text=f"Pulled: {pulled if pulled else 'none'}", fg=YELLOW)
 
         if pulled == sorted(WIRES_TARGET):
+            play_correct()
             self._wire_status.config(text="✓  Correct wires!", fg=GREEN)
             self.state.stage = "FINAL"
             self.root.after(800, self._wires_solved)
         elif len(pulled) >= len(WIRES_TARGET) and pulled != sorted(WIRES_TARGET):
             self._wire_status.config(text="✗  Wrong wires!", fg=RED)
             if self._strike("Wrong wires pulled!"):
-                self.root.after(500, self._show_wires)
+                self.root.after(2400, self._show_wires)
 
     def _wires_solved(self):
         self._set_code(self._final_code)
         self._show_final()
 
-
-    # FINAL
-
+    # ── FINAL CODE ────────────────────────────────────────────────────────────
 
     def _show_final(self):
         self.state.stage    = "FINAL"
@@ -844,9 +1134,9 @@ class BombGame:
 
     def _final_keypress(self, event):
         ch = event.char
-        if ch.isdigit():                  self._keypad_key(ch)
-        elif ch == "*":                   self._keypad_key("*")
-        elif event.keysym == "Return":    self._keypad_key("#")
+        if ch.isdigit():               self._keypad_key(ch)
+        elif ch == "*":                self._keypad_key("*")
+        elif event.keysym == "Return": self._keypad_key("#")
         elif event.keysym == "BackSpace":
             self.state.kp_input = self.state.kp_input[:-1]
             self._refresh_kp()
@@ -873,178 +1163,12 @@ class BombGame:
         blanks = ["_"] * (len(self._final_code) - len(filled))
         self._kp_display.config(text="  ".join(filled + blanks))
 
-# add-ons
 
-import sys
-import threading
-import time
-
-# Sound effects 
-
-def _play_win_sound():
-    try:
-        import winsound
-        winsound.Beep(1200, 200)
-        winsound.Beep(1600, 200)
-        winsound.Beep(2000, 300)
-    except:
-        try:
-            root = tk._default_root
-            root.bell()
-        except:
-            pass
-
-
-def _play_lose_sound():
-    try:
-        import winsound
-        winsound.Beep(400, 400)
-        winsound.Beep(250, 600)
-    except:
-        try:
-            root = tk._default_root
-            root.bell()
-        except:
-            pass
-
-
-
-# win screen
-
-
-def _patched_win(self):
-    _play_win_sound()
-    self.state.active = False
-    self._clear()
-    c = self._C()
-
-    canvas = tk.Canvas(c, width=600, height=350, bg=BG, highlightthickness=0)
-    canvas.pack()
-
-    # simple “congrats screen” graphic (no files needed)
-    canvas.create_rectangle(0, 0, 600, 350, fill="black", outline="green")
-    canvas.create_text(300, 120, text="CONGRATULATIONS",
-                       fill="green", font=("Courier New", 34, "bold"))
-    canvas.create_text(300, 180, text="YOU OUTSMARTED THE RIDDLER",
-                       fill="cyan", font=("Courier New", 20, "bold"))
-
-    # “victory burst” effect
-    for i in range(10):
-        x = 300 + (i - 5) * 20
-        y = 250
-        canvas.create_oval(x, y, x+10, y+10, fill="green", outline="")
-
-
-
-# lose screen
-
-_siren_running = False
-
-def _siren_loop(self):
-    global _siren_running
-    while _siren_running:
-        try:
-            print("\a")
-        except:
-            pass
-        time.sleep(0.25)
-        try:
-            print("\a")
-        except:
-            pass
-        time.sleep(0.25)
-        
-def _flash_red(self):
-    def loop(i=0):
-        if not self.state.active:
-            return
-        color = RED if i % 2 == 0 else "black"
-        try:
-            self.root.configure(bg=color)
-        except:
-            pass
-        self.root.after(200, lambda: loop(i + 1))
-
-    loop()
-    
-
-def _explode_patched(self, reason=""):
-    _play_lose_sound()
-    self.state.active = False
-    self._clear()
-    c = self._C()
-
-    tk.Label(c, text="💥 BOOM 💥",
-             fg="red", bg=BG,
-             font=("Courier New", 40, "bold")).pack()
-
-    tk.Label(c, text=f"THE RIDDLER WINS\n{reason}",
-             fg="white", bg=BG,
-             font=("Courier New", 16)).pack()
-
-# wire colors
-
-
-def _patch_wire_colors(self):
-    try:
-        if hasattr(self, "_wire_btns"):
-            colors = ["black", "white", "grey", "purple", "blue"]
-            for i, btn in enumerate(self._wire_btns):
-                if i < len(colors):
-                    btn.config(bg=colors[i], fg="white")
-    except:
-        pass
-
-
-
-
-BombGame._win = _patched_win
-BombGame._explode = _patched_explode
-
-# hook wire screen so it recolors after creation
-_original_show_wires = BombGame._show_wires
-
-def _wrapped_show_wires(self):
-    _original_show_wires(self)
-    self.root.after(200, lambda: _patch_wire_colors(self))
-
-BombGame._show_wires = _wrapped_show_wires
-
-def _play_win_sound():
-    try:
-        import winsound
-        winsound.Beep(1200, 200)
-        winsound.Beep(1600, 200)
-        winsound.Beep(2000, 300)
-    except:
-        pass
-
-
-def _play_lose_sound():
-    try:
-        import winsound
-        winsound.Beep(400, 400)
-        winsound.Beep(250, 600)
-    except:
-        pass
-
-
-def _win_patched(self):
-    _play_win_sound()
-    self.state.active = False
-    self._clear()
-    c = self._C()
-
-    tk.Label(c, text="CONGRATULATIONS",
-             fg="green", bg=BG,
-             font=("Courier New", 34, "bold")).pack()
-
-    tk.Label(c, text="YOU OUTSMARTED THE RIDDLER",
-             fg="cyan", bg=BG,
-             font=("Courier New", 20)).pack()
+# ══════════════════════════════════════════════════════════════════════════════
+#  ENTRY POINT
+# ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     root = tk.Tk()
     game = BombGame(root)
     root.mainloop()
-
