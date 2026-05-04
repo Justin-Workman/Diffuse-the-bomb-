@@ -738,10 +738,10 @@ class BombGame:
                  text=(
                      '"Good.  You found the first digit.  But riddles come in threes.\n'
                      ' My words have been scrambled — just like Gothams future\n'
-                     ' if you fail.  Unscramble them to earn the next piece."\n\n'
+                     ' if you fail.  Unscramble them to earn the next piece."\n'
                      "— The Riddler"
                  ),
-                 fg="white", bg=BG, font=("Courier New", 13),
+                 fg="white", bg=BG, font=("Courier New", 11),
                  justify="center").pack(pady=(0,6))
         tk.Label(c, text="A N A G R A M S",
                  fg=GREEN, bg=BG, font=("Courier New", 26, "bold")).pack(pady=(0, 4))
