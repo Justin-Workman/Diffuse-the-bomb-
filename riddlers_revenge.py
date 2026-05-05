@@ -1,3 +1,4 @@
+# imports and core libraries
 import tkinter as tk
 import random
 import threading
@@ -9,6 +10,7 @@ import wave
 import tempfile
 from dataclasses import dataclass, field
 
+# raspberry pi hardware setup (optional)
 try:
     import board, digitalio
     from adafruit_ht16k33.segments import Seg7x4
@@ -17,6 +19,7 @@ try:
 except ImportError:
     RPi = False
 
+# audio setup
 AUDIO_OK = False
 try:
     import pygame
@@ -26,34 +29,40 @@ try:
 except Exception:
     pass
 
-COUNTDOWN       = 300
-NUM_STRIKES     = 3
-TOGGLES_TARGET  = [1, 1, 0, 1]
-WIRES_TARGET    = [2, 4]
+# game settings
+COUNTDOWN = 300
+NUM_STRIKES = 3
+TOGGLES_TARGET = [1, 1, 0, 1]
+WIRES_TARGET = [2, 4]
 
-WORD_BANK    = ["array", "model", "build", "input", "debug"]
+# word pools
+WORD_BANK = ["array", "model", "build", "input", "debug"]
 ANAGRAM_POOL = ["python", "school", "binary", "decode", "system", "signal"]
 
-ANAGRAM_ROUNDS   = 2
+# puzzle settings
+ANAGRAM_ROUNDS = 2
 ANAGRAM_ATTEMPTS = 3
-WORDLE_ROWS      = 6
-WORDLE_COLS      = 5
+WORDLE_ROWS = 6
+WORDLE_COLS = 5
 
-BG        = "#050505"
-GREEN     = "#00FF66"
-RED       = "#FF3333"
-YELLOW    = "#FFD633"
-CYAN      = "#00FFFF"
-DIM       = "#3A3A3C"
-INPUT_BG  = "#0D0D1A"
+# ui colors
+BG = "#050505"
+GREEN = "#00FF66"
+RED = "#FF3333"
+YELLOW = "#FFD633"
+CYAN = "#00FFFF"
+DIM = "#3A3A3C"
+INPUT_BG = "#0D0D1A"
 
-T_CORRECT  = "#538D4E"
-T_PRESENT  = "#B59F3B"
-T_ABSENT   = "#3A3A3C"
+# wordle tile colors
+T_CORRECT = "#538D4E"
+T_PRESENT = "#B59F3B"
+T_ABSENT = "#3A3A3C"
 T_EMPTY_BG = "#121213"
 T_EMPTY_FG = "#818384"
-T_TEXT     = "#FFFFFF"
+T_TEXT = "#FFFFFF"
 
+# wire colors and keyboard layout
 WIRE_COLORS = ["#CC3333", "#EEEEEE", "#3399FF", "#33CC33", "#FFD633"]
 
 KB_ROWS = [
@@ -62,11 +71,8 @@ KB_ROWS = [
     ["ENTER"] + list("zxcvbnm") + ["⌫"],
 ]
 
-
-#  sound
-
+# sound generation functions
 def _make_sine(freq, duration_ms, volume=0.6, sample_rate=44100):
-    """Return raw 16-bit PCM bytes for a sine wave."""
     n = int(sample_rate * duration_ms / 1000)
     import math
     data = bytearray()
@@ -76,7 +82,6 @@ def _make_sine(freq, duration_ms, volume=0.6, sample_rate=44100):
     return bytes(data)
 
 def _make_wav_buffer(segments, sample_rate=44100):
-    """segments = list of (freq, ms) or (freq, ms, volume)"""
     raw = b""
     for seg in segments:
         if len(seg) == 2:
@@ -91,8 +96,8 @@ def _make_wav_buffer(segments, sample_rate=44100):
     buf += b'WAVE'
     buf += b'fmt '
     buf += struct.pack('<I', 16)
-    buf += struct.pack('<H', 1)           
-    buf += struct.pack('<H', 1)           
+    buf += struct.pack('<H', 1)
+    buf += struct.pack('<H', 1)
     buf += struct.pack('<I', sample_rate)
     buf += struct.pack('<I', sample_rate * 2)
     buf += struct.pack('<H', 2)
@@ -108,14 +113,14 @@ def _load_sound(segments):
     try:
         import io
         wav_bytes = _make_wav_buffer(segments)
-        snd = pygame.mixer.Sound(io.BytesIO(wav_bytes))
-        return snd
+        return pygame.mixer.Sound(io.BytesIO(wav_bytes))
     except Exception:
         return None
 
-_SND_WIN   = None
-_SND_LOSE  = None
-_SND_TICK  = None
+# sound variables and initialization
+_SND_WIN = None
+_SND_LOSE = None
+_SND_TICK = None
 _SND_TICK_FAST = None
 _SND_STRIKE = None
 _SND_CORRECT = None
@@ -124,25 +129,15 @@ def _init_sounds():
     global _SND_WIN, _SND_LOSE, _SND_TICK, _SND_TICK_FAST, _SND_STRIKE, _SND_CORRECT
     if not AUDIO_OK:
         return
-    _SND_WIN = _load_sound([
-        (523, 120), (659, 120), (784, 120), (1047, 300),
-        (0, 60),
-        (784, 100), (1047, 100), (1319, 350),
-    ])
-    _SND_LOSE = _load_sound([
-        (440, 180), (370, 200), (300, 250), (220, 400),
-        (0, 80),
-        (180, 500),
-    ])
-    _SND_TICK = _load_sound([(880, 40, 0.3)])
-    _SND_TICK_FAST = _load_sound([(1100, 35, 0.45)])
-    _SND_STRIKE = _load_sound([
-        (200, 100), (150, 150), (100, 200),
-    ])
-    _SND_CORRECT = _load_sound([
-        (659, 100), (784, 100), (1047, 180),
-    ])
 
+    _SND_WIN = _load_sound([(523,120),(659,120),(784,120),(1047,300),(0,60),(784,100),(1047,100),(1319,350)])
+    _SND_LOSE = _load_sound([(440,180),(370,200),(300,250),(220,400),(0,80),(180,500)])
+    _SND_TICK = _load_sound([(880,40,0.3)])
+    _SND_TICK_FAST = _load_sound([(1100,35,0.45)])
+    _SND_STRIKE = _load_sound([(200,100),(150,150),(100,200)])
+    _SND_CORRECT = _load_sound([(659,100),(784,100),(1047,180)])
+
+# sound playback helpers
 def _play(snd):
     if AUDIO_OK and snd:
         try:
@@ -150,37 +145,34 @@ def _play(snd):
         except Exception:
             pass
 
-def play_win():    _play(_SND_WIN)
-def play_lose():   _play(_SND_LOSE)
-def play_tick(fast=False):
-    _play(_SND_TICK_FAST if fast else _SND_TICK)
+def play_win(): _play(_SND_WIN)
+def play_lose(): _play(_SND_LOSE)
+def play_tick(fast=False): _play(_SND_TICK_FAST if fast else _SND_TICK)
 def play_strike(): _play(_SND_STRIKE)
 def play_correct(): _play(_SND_CORRECT)
 
-
-
-
+# game state container
 @dataclass
 class State:
-    stage:          str  = "BOOT"
-    timer:          int  = COUNTDOWN
-    active:         bool = False
-    strikes_left:   int  = NUM_STRIKES
-    code:           str  = "____"
+    stage: str = "BOOT"
+    timer: int = COUNTDOWN
+    active: bool = False
+    strikes_left: int = NUM_STRIKES
+    code: str = "____"
 
-    anagram_word:   str  = ""
-    anagram_pool:   list = None
-    anagram_rounds: int  = 0
-    anagram_tries:  int  = 0
+    anagram_word: str = ""
+    anagram_pool: list = None
+    anagram_rounds: int = 0
+    anagram_tries: int = 0
 
-    ttt_board:      list = None
+    ttt_board: list = None
 
-    w_secret:       str  = ""
-    w_attempt:      int  = 0
-    w_current:      str  = ""
+    w_secret: str = ""
+    w_attempt: int = 0
+    w_current: str = ""
 
-    wire_pulled:    list = None
-    kp_input:       str  = ""
+    wire_pulled: list = None
+    kp_input: str = ""
 
     def __post_init__(self):
         if self.anagram_pool is None:
@@ -190,9 +182,7 @@ class State:
         if self.wire_pulled is None:
             self.wire_pulled = []
 
-
-
-
+# tic tac toe logic
 _TTT_WINS = [
     (0,1,2),(3,4,5),(6,7,8),
     (0,3,6),(1,4,7),(2,5,8),
@@ -220,6 +210,7 @@ def _minimax(b, is_max, depth=0):
             b[i] = ""
     return max(scores) if is_max else min(scores)
 
+# tic tac toe ai move selection
 def _best_move(b):
     if random.randint(1, 100) <= 50:
         empty = [i for i in range(9) if b[i] == ""]
@@ -235,12 +226,10 @@ def _best_move(b):
     return move
 
 
-
-#  the main game classes 
-
-
+# main game class
 class BombGame:
 
+    # initialize game window and core state
     def __init__(self, root):
         self.root  = root
         self.state = State()
@@ -265,6 +254,7 @@ class BombGame:
         self._show_boot()
 
 
+    # build top ui layout and content container
     def _build_ui(self):
         self.root.rowconfigure(0, weight=0)
         self.root.rowconfigure(1, weight=1)
@@ -296,6 +286,8 @@ class BombGame:
         self.content.rowconfigure(0, weight=1)
         self.content.columnconfigure(0, weight=1)
 
+
+    # clear animations and screen content
     def _clear(self):
         for aid in self._anim_ids:
             try: self.root.after_cancel(aid)
@@ -308,24 +300,31 @@ class BombGame:
             try: self.root.unbind(seq)
             except: pass
 
+
+    # center container helper
     def _C(self):
         f = tk.Frame(self.content, bg=BG)
         f.place(relx=0.5, rely=0.5, anchor="center")
         return f
 
+
+    # update displayed code
     def _set_code(self, code):
         self.state.code = code
         self._code_lbl.config(text=f"CODE: {code}")
 
+
+    # update top status labels
     def _update_top(self):
         self._stage_lbl.config(text=self.state.stage)
         self._strike_lbl.config(text=f"STRIKES: {self.state.strikes_left}")
 
-    #  our hardware
 
+    # hardware setup for raspberry pi
     def _setup_hardware(self):
         if not RPi:
             return
+
         i2c = board.I2C()
         self._seg = Seg7x4(i2c)
         self._seg.brightness = 0.7
@@ -334,74 +333,90 @@ class BombGame:
         for pin in (board.D12, board.D16, board.D20, board.D21):
             d = digitalio.DigitalInOut(pin)
             d.direction = digitalio.Direction.INPUT
-            d.pull      = digitalio.Pull.DOWN
+            d.pull = digitalio.Pull.DOWN
             self._toggles.append(d)
 
         self._wires = []
         for pin in (board.D14, board.D15, board.D18, board.D23, board.D24):
             d = digitalio.DigitalInOut(pin)
             d.direction = digitalio.Direction.INPUT
-            d.pull      = digitalio.Pull.DOWN
+            d.pull = digitalio.Pull.DOWN
             self._wires.append(d)
 
-        self._btn           = digitalio.DigitalInOut(board.D4)
+        self._btn = digitalio.DigitalInOut(board.D4)
         self._btn.direction = digitalio.Direction.INPUT
-        self._btn.pull      = digitalio.Pull.DOWN
+        self._btn.pull = digitalio.Pull.DOWN
 
         cols = [digitalio.DigitalInOut(p) for p in (board.D10, board.D9, board.D11)]
         rows = [digitalio.DigitalInOut(p) for p in (board.D5, board.D6, board.D13, board.D19)]
         keys = ((1,2,3),(4,5,6),(7,8,9),("*",0,"#"))
-        self._keypad  = Matrix_Keypad(rows, cols, keys)
+        self._keypad = Matrix_Keypad(rows, cols, keys)
         self._prev_kp = []
 
+
+    # hardware polling loop
     def _hw_loop(self):
         self._update_top()
+
         if RPi:
             s = self.state.stage
+
             if s == "BOOT" and self._btn.value:
                 self.root.after(80, self._check_boot_button)
                 return
+
             elif s == "TOGGLES":
                 vals = [1 if t.value else 0 for t in self._toggles]
                 if vals == TOGGLES_TARGET:
                     self.state.stage = "ANAGRAM"
                     self._set_code(f"{self._d[0]}___")
                     self.root.after(50, self._show_anagram)
+
             elif s == "WIRES":
                 pulled = sorted([i+1 for i, w in enumerate(self._wires) if not w.value])
+
                 if pulled == sorted(WIRES_TARGET):
                     self.state.stage = "FINAL"
                     self._wires_solved()
+
                 elif len(pulled) >= len(WIRES_TARGET) and pulled != sorted(WIRES_TARGET):
                     self.state.stage = "WIRES_ERR"
                     if self._strike("Wrong wires pulled!"):
                         self.root.after(500, self._show_wires)
+
             elif s == "FINAL":
                 self._poll_keypad()
+
         self.root.after(100, self._hw_loop)
 
+
+    # debounce button press at start
     def _check_boot_button(self):
-        """Debounce: only activate if button is still held after 80 ms."""
         if RPi and self.state.stage == "BOOT" and self._btn.value:
             self._activate()
         self.root.after(100, self._hw_loop)
 
+
+    # detect new keypad inputs
     def _poll_keypad(self):
-        current  = list(self._keypad.pressed_keys)
+        current = list(self._keypad.pressed_keys)
         new_keys = [k for k in current if k not in self._prev_kp]
         self._prev_kp = current
         for key in new_keys:
             self._keypad_key(key)
 
-    # timer
 
+    # start game timer
     def _start_timer(self):
         self.state.active = True
         self._tick()
 
+
+    # timer countdown logic
     def _tick(self):
         if not self.state.active:
             return
+
         if self.state.timer <= 0:
             self._explode("TIME OUT")
             return
@@ -432,813 +447,791 @@ class BombGame:
         self.root.after(1000, self._tick)
 
 
+    # handle strike and failure tracking
     def _strike(self, reason="Strike!"):
         play_strike()
         self.state.strikes_left -= 1
         self._update_top()
         self._flash_label(self._strike_lbl, RED, YELLOW, 4)
+
         if self.state.strikes_left <= 0:
             self._explode(reason)
             return False
+
         self._show_strike_overlay(reason)
         return True
 
+
+    # display strike popup
     def _show_strike_overlay(self, reason):
-        """Non-blocking strike warning that disappears after 2s."""
         overlay = tk.Toplevel(self.root)
         overlay.overrideredirect(True)
         overlay.configure(bg="#220000")
         overlay.attributes("-topmost", True)
+
         w, h = 480, 160
         x = (self._sw - w) // 2
         y = (self._sh - h) // 2
         overlay.geometry(f"{w}x{h}+{x}+{y}")
+
         tk.Label(overlay, text="⚡  S T R I K E  ⚡",
                  fg=RED, bg="#220000", font=("Courier New", 26, "bold")).pack(pady=(18, 4))
+
         tk.Label(overlay, text=reason,
                  fg=YELLOW, bg="#220000", font=("Courier New", 14)).pack()
+
         tk.Label(overlay, text=f"{self.state.strikes_left} strike(s) remaining",
                  fg="white", bg="#220000", font=("Courier New", 12)).pack(pady=6)
+
         overlay.after(2000, overlay.destroy)
 
-    def _flash_label(self, lbl, col_a, col_b, times):
-        def _do(n):
-            if n <= 0:
-                return
-            lbl.config(fg=col_a if n % 2 == 0 else col_b)
-            self.root.after(120, lambda: _do(n - 1))
-        _do(times * 2)
+  # flash label color effect
+def _flash_label(self, lbl, col_a, col_b, times):
+    def _do(n):
+        if n <= 0:
+            return
+        lbl.config(fg=col_a if n % 2 == 0 else col_b)
+        self.root.after(120, lambda: _do(n - 1))
+    _do(times * 2)
 
-    # losing screen
 
-    def _explode(self, reason=""):
-        play_lose()
-        self.state.active = False
-        self._clear()
-        c = self._C()
+# losing screen display
+def _explode(self, reason=""):
+    play_lose()
+    self.state.active = False
+    self._clear()
+    c = self._C()
 
-        canvas = tk.Canvas(c, width=700, height=400, bg="black", highlightthickness=0)
-        canvas.pack()
+    canvas = tk.Canvas(c, width=700, height=400, bg="black", highlightthickness=0)
+    canvas.pack()
 
-        canvas.create_rectangle(0, 0, 700, 400, fill="#0A0000", outline=RED, width=4)
+    canvas.create_rectangle(0, 0, 700, 400, fill="#0A0000", outline=RED, width=4)
 
-        for i in range(8):
-            import math
-            angle = i * (360 / 8) * math.pi / 180
-            rx = 350 + int(90 * math.cos(angle))
-            ry = 120 + int(50 * math.sin(angle))
-            r = random.randint(12, 28)
-            canvas.create_oval(rx-r, ry-r, rx+r, ry+r, fill=YELLOW, outline=RED)
+    for i in range(8):
+        import math
+        angle = i * (360 / 8) * math.pi / 180
+        rx = 350 + int(90 * math.cos(angle))
+        ry = 120 + int(50 * math.sin(angle))
+        r = random.randint(12, 28)
+        canvas.create_oval(rx-r, ry-r, rx+r, ry+r, fill=YELLOW, outline=RED)
 
-        canvas.create_text(350, 110, text="💥  B O O M  💥",
-                           fill=RED, font=("Courier New", 50, "bold"))
-        canvas.create_text(350, 200, text="THE RIDDLER WINS",
-                           fill=YELLOW, font=("Courier New", 24, "bold"))
-        canvas.create_text(350, 240, text=reason,
-                           fill="white", font=("Courier New", 14))
-        canvas.create_text(350, 278,
-                           text='"Gotham always underestimates me.  How tiresome."',
-                           fill=RED, font=("Courier New", 13, "italic"))
-        canvas.create_text(350, 314,
-                           text="The 6th floor study room goes dark.  Water keeps dripping.",
-                           fill=DIM, font=("Courier New", 12, "italic"))
-        canvas.create_text(350, 350, text="Press Escape to quit",
-                           fill=DIM, font=("Courier New", 11))
+    canvas.create_text(350, 110, text="💥  B O O M  💥",
+                       fill=RED, font=("Courier New", 50, "bold"))
+    canvas.create_text(350, 200, text="THE RIDDLER WINS",
+                       fill=YELLOW, font=("Courier New", 24, "bold"))
+    canvas.create_text(350, 240, text=reason,
+                       fill="white", font=("Courier New", 14))
+    canvas.create_text(350, 278,
+                       text='"Gotham always underestimates me.  How tiresome."',
+                       fill=RED, font=("Courier New", 13, "italic"))
+    canvas.create_text(350, 314,
+                       text="The 6th floor study room goes dark.  Water keeps dripping.",
+                       fill=DIM, font=("Courier New", 12, "italic"))
+    canvas.create_text(350, 350, text="Press Escape to quit",
+                       fill=DIM, font=("Courier New", 11))
 
-        self._boom_flash(canvas, 0)
+    self._boom_flash(canvas, 0)
 
-        tk.Button(c, text="PLAY AGAIN",
-                  fg=BG, bg=RED,
-                  activeforeground=BG, activebackground=YELLOW,
-                  font=("Courier New", 14, "bold"),
-                  relief="flat", padx=20, pady=10,
-                  command=self._restart).pack(pady=(12, 0))
+    tk.Button(c, text="PLAY AGAIN",
+              fg=BG, bg=RED,
+              activeforeground=BG, activebackground=YELLOW,
+              font=("Courier New", 14, "bold"),
+              relief="flat", padx=20, pady=10,
+              command=self._restart).pack(pady=(12, 0))
 
-    def _boom_flash(self, canvas, tick):
-        colors = [RED, YELLOW, "#FF6600", RED, "#FF0000"]
-        col = colors[tick % len(colors)]
-        canvas.config(highlightthickness=6, highlightbackground=col)
-        aid = self.root.after(300, lambda: self._boom_flash(canvas, tick + 1))
-        self._anim_ids.append(aid)
 
-    # winning screen
+# explosion animation effect
+def _boom_flash(self, canvas, tick):
+    colors = [RED, YELLOW, "#FF6600", RED, "#FF0000"]
+    col = colors[tick % len(colors)]
+    canvas.config(highlightthickness=6, highlightbackground=col)
+    aid = self.root.after(300, lambda: self._boom_flash(canvas, tick + 1))
+    self._anim_ids.append(aid)
 
-    def _win(self):
-        play_win()
-        self.state.active = False
-        self._clear()
-        c = self._C()
 
-        canvas = tk.Canvas(c, width=700, height=400, bg="black", highlightthickness=0)
-        canvas.pack()
+# winning screen display
+def _win(self):
+    play_win()
+    self.state.active = False
+    self._clear()
+    c = self._C()
 
-        canvas.create_rectangle(0, 0, 700, 400, fill="#000A05", outline=GREEN, width=4)
+    canvas = tk.Canvas(c, width=700, height=400, bg="black", highlightthickness=0)
+    canvas.pack()
 
-        for _ in range(18):
-            x = random.randint(30, 670)
-            y = random.randint(20, 380)
-            r = random.randint(3, 9)
-            canvas.create_oval(x-r, y-r, x+r, y+r,
-                               fill=random.choice([GREEN, CYAN, YELLOW]),
-                               outline="")
+    canvas.create_rectangle(0, 0, 700, 400, fill="#000A05", outline=GREEN, width=4)
 
-        canvas.create_text(350, 100, text="✔  D E F U S E D  ✔",
-                           fill=GREEN, font=("Courier New", 44, "bold"))
-        canvas.create_text(350, 178, text="YOU OUTSMARTED THE RIDDLER",
-                           fill=CYAN, font=("Courier New", 20, "bold"))
-        canvas.create_text(350, 228, text=f"Disarm code  {self._final_code}  accepted.  Bomb neutralised.",
-                           fill=YELLOW, font=("Courier New", 14))
-        canvas.create_text(350, 268,
-                           text="The Riddler's signal goes dead.  Gotham exhales.",
-                           fill="white", font=("Courier New", 13, "italic"))
-        canvas.create_text(350, 308,
-                           text="Somewhere in the 6th floor study room, a drip falls on a severed wire.",
-                           fill=DIM, font=("Courier New", 12, "italic"))
-        canvas.create_text(350, 355, text="Gotham is safe.  For now.",
-                           fill=GREEN, font=("Courier New", 14, "bold"))
-        canvas.create_text(350, 385, text="Press Escape to quit",
-                           fill=DIM, font=("Courier New", 11))
+    for _ in range(18):
+        x = random.randint(30, 670)
+        y = random.randint(20, 380)
+        r = random.randint(3, 9)
+        canvas.create_oval(x-r, y-r, x+r, y+r,
+                           fill=random.choice([GREEN, CYAN, YELLOW]),
+                           outline="")
 
-        self._sparkle(canvas, 0)
+    canvas.create_text(350, 100, text="✔  D E F U S E D  ✔",
+                       fill=GREEN, font=("Courier New", 44, "bold"))
+    canvas.create_text(350, 178, text="YOU OUTSMARTED THE RIDDLER",
+                       fill=CYAN, font=("Courier New", 20, "bold"))
+    canvas.create_text(350, 228, text=f"Disarm code  {self._final_code}  accepted.  Bomb neutralised.",
+                       fill=YELLOW, font=("Courier New", 14))
+    canvas.create_text(350, 268,
+                       text="The Riddler's signal goes dead.  Gotham exhales.",
+                       fill="white", font=("Courier New", 13, "italic"))
+    canvas.create_text(350, 308,
+                       text="Somewhere in the 6th floor study room, a drip falls on a severed wire.",
+                       fill=DIM, font=("Courier New", 12, "italic"))
+    canvas.create_text(350, 355, text="Gotham is safe.  For now.",
+                       fill=GREEN, font=("Courier New", 14, "bold"))
+    canvas.create_text(350, 385, text="Press Escape to quit",
+                       fill=DIM, font=("Courier New", 11))
 
-        tk.Button(c, text="PLAY AGAIN",
+    self._sparkle(canvas, 0)
+
+    tk.Button(c, text="PLAY AGAIN",
+              fg=BG, bg=GREEN,
+              activeforeground=BG, activebackground=CYAN,
+              font=("Courier New", 14, "bold"),
+              relief="flat", padx=20, pady=10,
+              command=self._restart).pack(pady=(12, 0))
+
+
+# sparkle animation effect
+def _sparkle(self, canvas, tick):
+    try:
+        x = random.randint(30, 670)
+        y = random.randint(20, 380)
+        r = random.randint(2, 6)
+        dot = canvas.create_oval(x-r, y-r, x+r, y+r,
+                                 fill=random.choice([GREEN, CYAN, YELLOW]),
+                                 outline="")
+        canvas.after(400, lambda: canvas.delete(dot))
+    except Exception:
+        return
+    aid = self.root.after(180, lambda: self._sparkle(canvas, tick + 1))
+    self._anim_ids.append(aid)
+
+
+# restart game state
+def _restart(self):
+    self._clear()
+    self.state = State()
+    self._hw_loop_running = False
+    self._d = [random.randint(0, 9) for _ in range(4)]
+    self._final_code = "".join(str(x) for x in self._d)
+    self._timer_lbl.config(text="05:00", fg=RED)
+    self._code_lbl.config(text="CODE: ____")
+    self._show_boot()
+
+
+# boot screen display
+def _show_boot(self):
+    self.state.stage = "BOOT"
+    self._clear()
+    c = self._C()
+
+    title_lbl = tk.Label(c, text="RIDDLER'S REVENGE",
+             fg=GREEN, bg=BG, font=("Courier New", 38, "bold"))
+    title_lbl.pack(pady=(0, 20))
+
+    tk.Label(c, text="C H A P T E R   I",
+             fg=DIM, bg=BG, font=("Courier New", 13, "italic")).pack(pady=(0,6))
+
+    tk.Label(c,
+             text=(
+                 "Gotham City.  3:47 AM.\n\n"
+                 "A transmission cuts through every screen in the city:\n\n"
+                 '"Hello, detectives.  I have hidden a bomb somewhere in Gotham.\n'
+                 " You have five minutes before this city becomes a memory.\n"
+                 " Solve my riddles, find my clues, cut the right wires —\n"
+                 ' and perhaps — just perhaps — Gotham survives the night."\n\n'
+                 "— The Riddler"
+             ),
+             fg="white", bg=BG, font=("Courier New", 14),
+             justify="center").pack(pady=10)
+
+    tk.Label(c,
+             text="Press the silver button when you are ready to begin.",
+             fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(8,0))
+
+    if not RPi:
+        tk.Button(c, text="[ PRESS TO START ]",
                   fg=BG, bg=GREEN,
                   activeforeground=BG, activebackground=CYAN,
-                  font=("Courier New", 14, "bold"),
-                  relief="flat", padx=20, pady=10,
-                  command=self._restart).pack(pady=(12, 0))
+                  font=("Courier New", 16, "bold"),
+                  relief="flat", padx=24, pady=12,
+                  command=self._activate).pack(pady=30)
 
-    def _sparkle(self, canvas, tick):
-        try:
-            x = random.randint(30, 670)
-            y = random.randint(20, 380)
-            r = random.randint(2, 6)
-            dot = canvas.create_oval(x-r, y-r, x+r, y+r,
-                                     fill=random.choice([GREEN, CYAN, YELLOW]),
-                                     outline="")
-            canvas.after(400, lambda: canvas.delete(dot))
-        except Exception:
-            return
-        aid = self.root.after(180, lambda: self._sparkle(canvas, tick + 1))
-        self._anim_ids.append(aid)
+        self.root.bind("<Return>", lambda e: self._activate())
+        self.root.bind("<space>",  lambda e: self._activate())
 
-    # restarting
+    self._pulse_label(title_lbl, GREEN, CYAN)
 
-    def _restart(self):
-        self._clear()
-        self.state = State()
-        self._hw_loop_running = False  # allow hw_loop to restart
-        self._d = [random.randint(0, 9) for _ in range(4)]
-        self._final_code = "".join(str(x) for x in self._d)
-        self._timer_lbl.config(text="05:00", fg=RED)
-        self._code_lbl.config(text="CODE: ____")
-        self._show_boot()
-
-    # beggning screen
-
-    def _show_boot(self):
-        self.state.stage = "BOOT"
-        self._clear()
-        c = self._C()
-
-        # Animated title
-        title_lbl = tk.Label(c, text="RIDDLER'S REVENGE",
-                 fg=GREEN, bg=BG, font=("Courier New", 38, "bold"))
-        title_lbl.pack(pady=(0, 20))
-
-        tk.Label(c, text="C H A P T E R   I",
-                 fg=DIM, bg=BG, font=("Courier New", 13, "italic")).pack(pady=(0,6))
-        tk.Label(c,
-                 text=(
-                     "Gotham City.  3:47 AM.\n\n"
-                     "A transmission cuts through every screen in the city:\n\n"
-                     '"Hello, detectives.  I have hidden a bomb somewhere in Gotham.\n'
-                     " You have five minutes before this city becomes a memory.\n"
-                     " Solve my riddles, find my clues, cut the right wires —\n"
-                     ' and perhaps — just perhaps — Gotham survives the night."\n\n'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 14),
-                 justify="center").pack(pady=10)
-        tk.Label(c,
-                 text="Press the silver button when you are ready to begin.",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(8,0))
-
-        if not RPi:
-            tk.Button(c, text="[ PRESS TO START ]",
-                      fg=BG, bg=GREEN,
-                      activeforeground=BG, activebackground=CYAN,
-                      font=("Courier New", 16, "bold"),
-                      relief="flat", padx=24, pady=12,
-                      command=self._activate).pack(pady=30)
-            self.root.bind("<Return>", lambda e: self._activate())
-            self.root.bind("<space>",  lambda e: self._activate())
-
-        self._pulse_label(title_lbl, GREEN, CYAN)
-
-        if RPi and not getattr(self, "_hw_loop_running", False):
-            self._hw_loop_running = True
-            self.root.after(100, self._hw_loop)
-
-    def _pulse_label(self, lbl, c1, c2):
-        """Gently alternate a label between two colors (boot screen only)."""
-        def _do(use_c1=True):
-            if self.state.stage != "BOOT":
-                return
-            try:
-                lbl.config(fg=c1 if use_c1 else c2)
-            except Exception:
-                return
-            aid = self.root.after(700, lambda: _do(not use_c1))
-            self._anim_ids.append(aid)
-        _do()
-
-    def _activate(self):
+    if RPi and not getattr(self, "_hw_loop_running", False):
+        self._hw_loop_running = True
+        self.root.after(100, self._hw_loop)
+# pulse animation for boot title
+def _pulse_label(self, lbl, c1, c2):
+    def _do(use_c1=True):
         if self.state.stage != "BOOT":
             return
-        self._start_timer()
-        self._show_toggles()
+        try:
+            lbl.config(fg=c1 if use_c1 else c2)
+        except Exception:
+            return
+        aid = self.root.after(700, lambda: _do(not use_c1))
+        self._anim_ids.append(aid)
+    _do()
 
-    # toggles
 
-    def _show_toggles(self):
-        self.state.stage = "TOGGLES"
-        self._clear()
-        c = self._C()
-        tk.Label(c, text="C H A P T E R   I I  —  T H E   S W I T C H B O A R D",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,8))
-        tk.Label(c,
-                 text=(
-                     '"Ahh, you made it this far.  How delightful.\n\n'
-                     " My bomb is armed.  But before it detonates,\n"
-                     " it needs a code.  The first digit is locked\n"
-                     " behind a panel of switches.\n\n"
-                     ' Flip them to represent the number  13  in binary.\n'
-                     ' Can you do it?  The clock says otherwise."\n\n'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 14),
-                 justify="center").pack(pady=(0, 10))
-        tk.Label(c, text="▸  SET THE SWITCHES TO REPRESENT  1 3  IN BINARY  ◂",
-                 fg=RED, bg=BG, font=("Courier New", 18, "bold")).pack(pady=6)
-        tk.Label(c, text="UP = 1     DOWN = 0     4 switches     you figure out the rest",
-                 fg=CYAN, bg=BG, font=("Courier New", 13)).pack(pady=4)
+# start game from boot
+def _activate(self):
+    if self.state.stage != "BOOT":
+        return
+    self._start_timer()
+    self._show_toggles()
 
-        if not RPi:
-            tk.Label(c, text="Click the switches to toggle them",
-                     fg=DIM, bg=BG, font=("Courier New", 11)).pack(pady=(14, 8))
-            row = tk.Frame(c, bg=BG)
-            row.pack(pady=6)
-            self._toggle_state = [0, 0, 0, 0]
-            self._toggle_btns  = []
-            for i in range(4):
-                def _make(idx):
-                    def cb():
-                        self._toggle_state[idx] ^= 1
-                        up = self._toggle_state[idx]
-                        self._toggle_btns[idx].config(
-                            text=f"SW {idx+1}\n{'▲  UP' if up else '▼  DN'}",
-                            fg=BG, bg=GREEN if up else DIM)
-                        if self._toggle_state == TOGGLES_TARGET:
-                            play_correct()
-                            self.state.stage = "ANAGRAM"
-                            self._set_code(f"{self._d[0]}___")
-                            self.root.after(400, self._show_anagram)
-                    return cb
-                b = tk.Button(row, text=f"SW {i+1}\n▼  DN",
-                              fg=BG, bg=DIM,
-                              activeforeground=BG, activebackground=GREEN,
-                              font=("Courier New", 14, "bold"),
-                              width=8, height=3, relief="flat",
-                              command=_make(i))
-                b.pack(side="left", padx=12)
-                self._toggle_btns.append(b)
 
-    # anagram
+# toggles puzzle screen
+def _show_toggles(self):
+    self.state.stage = "TOGGLES"
+    self._clear()
+    c = self._C()
 
-    def _show_anagram(self):
-        self.state.stage       = "ANAGRAM"
-        self.state.anagram_tries = 0
-        self._clear()
-        c = self._C()
+    tk.Label(c, text="C H A P T E R   I I  —  T H E   S W I T C H B O A R D",
+             fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,8))
 
-        if not self.state.anagram_pool:
-            self.state.anagram_pool = random.sample(ANAGRAM_POOL, len(ANAGRAM_POOL))
-        self.state.anagram_word = self.state.anagram_pool.pop()
+    tk.Label(c,
+             text=(
+                 '"Ahh, you made it this far.  How delightful.\n\n'
+                 " My bomb is armed.  But before it detonates,\n"
+                 " it needs a code.  The first digit is locked\n"
+                 " behind a panel of switches.\n\n"
+                 ' Flip them to represent the number  13  in binary.\n'
+                 ' Can you do it?  The clock says otherwise."\n\n'
+                 "— The Riddler"
+             ),
+             fg="white", bg=BG, font=("Courier New", 14),
+             justify="center").pack(pady=(0, 10))
 
-        letters = list(self.state.anagram_word)
-        for _ in range(100):
-            random.shuffle(letters)
-            if "".join(letters) != self.state.anagram_word:
-                break
-        scrambled = "".join(letters)
+    tk.Label(c, text="▸  SET THE SWITCHES TO REPRESENT  1 3  IN BINARY  ◂",
+             fg=RED, bg=BG, font=("Courier New", 18, "bold")).pack(pady=6)
 
-        tk.Label(c, text="C H A P T E R   I I I  —  W O R D S   I N   C H A O S",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
-        tk.Label(c,
-                 text=(
-                     '"Good.  You found the first digit.  But riddles come in threes.\n'
-                     ' My words have been scrambled — just like Gothams future\n'
-                     ' if you fail.  Unscramble them to earn the next piece."\n'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 11),
-                 justify="center").pack(pady=(0,6))
-        tk.Label(c, text="A N A G R A M S",
-                 fg=GREEN, bg=BG, font=("Courier New", 26, "bold")).pack(pady=(0, 4))
-        self._ana_round_lbl = tk.Label(
-            c, text=f"Round {self.state.anagram_rounds + 1} of {ANAGRAM_ROUNDS}  ·  Unscramble the word",
-            fg=CYAN, bg=BG, font=("Courier New", 14))
-        self._ana_round_lbl.pack(pady=4)
-        tk.Label(c, text=" ".join(scrambled.upper()),
-                 fg=YELLOW, bg=BG, font=("Courier New", 44, "bold")).pack(pady=20)
-        self._ana_dots = tk.Label(c, text="◆  ◆  ◆",
-                                  fg=RED, bg=BG, font=("Courier New", 20))
-        self._ana_dots.pack(pady=6)
+    tk.Label(c, text="UP = 1     DOWN = 0     4 switches     you figure out the rest",
+             fg=CYAN, bg=BG, font=("Courier New", 13)).pack(pady=4)
 
-        ef = tk.Frame(c, bg=BG)
-        ef.pack(pady=8)
-        self._ana_entry = tk.Entry(ef, font=("Courier New", 22),
-                                   fg=GREEN, bg=INPUT_BG,
-                                   insertbackground=GREEN,
-                                   relief="flat", bd=0, width=14, justify="center",
-                                   highlightthickness=2, highlightbackground=GREEN)
-        self._ana_entry.pack(side="left", ipady=8, padx=(0, 10))
-        self._ana_entry.bind("<Return>", lambda e: self._check_anagram())
-        self._ana_entry.focus()
-        tk.Button(ef, text="SUBMIT",
-                  fg=BG, bg=GREEN, activeforeground=BG, activebackground=CYAN,
-                  font=("Courier New", 14, "bold"),
-                  relief="flat", padx=16, pady=8,
-                  command=self._check_anagram).pack(side="left")
+    # non-raspberry pi toggle buttons
+    if not RPi:
+        tk.Label(c, text="Click the switches to toggle them",
+                 fg=DIM, bg=BG, font=("Courier New", 11)).pack(pady=(14, 8))
 
-        self._ana_status = tk.Label(c, text="",
-                                    fg=RED, bg=BG, font=("Courier New", 15))
-        self._ana_status.pack(pady=10)
+        row = tk.Frame(c, bg=BG)
+        row.pack(pady=6)
 
-    def _check_anagram(self):
-        guess = self._ana_entry.get().strip().lower()
-        self._ana_entry.delete(0, "end")
-        if guess == self.state.anagram_word:
-            play_correct()
-            self.state.anagram_rounds += 1
-            if self.state.anagram_rounds >= ANAGRAM_ROUNDS:
-                self._ana_status.config(text="✓  Both solved!  Moving on...", fg=GREEN)
-                self.root.after(1200, self._show_ttt)
-            else:
-                self._ana_status.config(
-                    text=f"✓  Correct! ({self.state.anagram_word.upper()})  Next word...",
-                    fg=GREEN)
-                self.root.after(1200, self._show_anagram)
+        self._toggle_state = [0, 0, 0, 0]
+        self._toggle_btns  = []
+
+        for i in range(4):
+            def _make(idx):
+                def cb():
+                    self._toggle_state[idx] ^= 1
+                    up = self._toggle_state[idx]
+
+                    self._toggle_btns[idx].config(
+                        text=f"SW {idx+1}\n{'▲  UP' if up else '▼  DN'}",
+                        fg=BG, bg=GREEN if up else DIM)
+
+                    if self._toggle_state == TOGGLES_TARGET:
+                        play_correct()
+                        self.state.stage = "ANAGRAM"
+                        self._set_code(f"{self._d[0]}___")
+                        self.root.after(400, self._show_anagram)
+                return cb
+
+            b = tk.Button(row, text=f"SW {i+1}\n▼  DN",
+                          fg=BG, bg=DIM,
+                          activeforeground=BG, activebackground=GREEN,
+                          font=("Courier New", 14, "bold"),
+                          width=8, height=3, relief="flat",
+                          command=_make(i))
+            b.pack(side="left", padx=12)
+            self._toggle_btns.append(b)
+
+
+# anagram puzzle screen
+def _show_anagram(self):
+    self.state.stage = "ANAGRAM"
+    self.state.anagram_tries = 0
+    self._clear()
+    c = self._C()
+
+    if not self.state.anagram_pool:
+        self.state.anagram_pool = random.sample(ANAGRAM_POOL, len(ANAGRAM_POOL))
+
+    self.state.anagram_word = self.state.anagram_pool.pop()
+
+    letters = list(self.state.anagram_word)
+    for _ in range(100):
+        random.shuffle(letters)
+        if "".join(letters) != self.state.anagram_word:
+            break
+
+    scrambled = "".join(letters)
+
+    tk.Label(c, text="C H A P T E R   I I I  —  W O R D S   I N   C H A O S",
+             fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
+
+    tk.Label(c,
+             text=(
+                 '"Good.  You found the first digit.  But riddles come in threes.\n'
+                 ' My words have been scrambled — just like Gothams future\n'
+                 ' if you fail.  Unscramble them to earn the next piece."\n'
+                 "— The Riddler"
+             ),
+             fg="white", bg=BG, font=("Courier New", 11),
+             justify="center").pack(pady=(0,6))
+
+    tk.Label(c, text="A N A G R A M S",
+             fg=GREEN, bg=BG, font=("Courier New", 26, "bold")).pack(pady=(0, 4))
+
+    self._ana_round_lbl = tk.Label(
+        c,
+        text=f"Round {self.state.anagram_rounds + 1} of {ANAGRAM_ROUNDS}  ·  Unscramble the word",
+        fg=CYAN, bg=BG, font=("Courier New", 14))
+    self._ana_round_lbl.pack(pady=4)
+
+    tk.Label(c, text=" ".join(scrambled.upper()),
+             fg=YELLOW, bg=BG, font=("Courier New", 44, "bold")).pack(pady=20)
+
+    self._ana_dots = tk.Label(c, text="◆  ◆  ◆",
+                              fg=RED, bg=BG, font=("Courier New", 20))
+    self._ana_dots.pack(pady=6)
+
+    ef = tk.Frame(c, bg=BG)
+    ef.pack(pady=8)
+
+    self._ana_entry = tk.Entry(
+        ef,
+        font=("Courier New", 22),
+        fg=GREEN, bg=INPUT_BG,
+        insertbackground=GREEN,
+        relief="flat", bd=0,
+        width=14, justify="center",
+        highlightthickness=2, highlightbackground=GREEN)
+    self._ana_entry.pack(side="left", ipady=8, padx=(0, 10))
+
+    self._ana_entry.bind("<Return>", lambda e: self._check_anagram())
+    self._ana_entry.focus()
+
+    tk.Button(ef, text="SUBMIT",
+              fg=BG, bg=GREEN,
+              activeforeground=BG, activebackground=CYAN,
+              font=("Courier New", 14, "bold"),
+              relief="flat", padx=16, pady=8,
+              command=self._check_anagram).pack(side="left")
+
+    self._ana_status = tk.Label(c, text="",
+                                fg=RED, bg=BG, font=("Courier New", 15))
+    self._ana_status.pack(pady=10)
+
+
+# anagram answer checking
+def _check_anagram(self):
+    guess = self._ana_entry.get().strip().lower()
+    self._ana_entry.delete(0, "end")
+
+    if guess == self.state.anagram_word:
+        play_correct()
+        self.state.anagram_rounds += 1
+
+        if self.state.anagram_rounds >= ANAGRAM_ROUNDS:
+            self._ana_status.config(text="✓  Both solved!  Moving on...", fg=GREEN)
+            self.root.after(1200, self._show_ttt)
         else:
-            self.state.anagram_tries += 1
-            rem = ANAGRAM_ATTEMPTS - self.state.anagram_tries
-            self._ana_dots.config(
-                text=("◆  " * rem + "◇  " * self.state.anagram_tries).strip())
-            if self.state.anagram_tries >= ANAGRAM_ATTEMPTS:
-                self._ana_status.config(
-                    text=f"✗  Failed.  Word was: {self.state.anagram_word.upper()}", fg=RED)
-                if self._strike("Anagram failed!"):
-                    self.root.after(2400, self._show_anagram)
-            else:
-                self._ana_status.config(
-                    text=f"✗  Wrong.  {rem} attempt{'s' if rem != 1 else ''} left.", fg=RED)
-                self._ana_entry.focus()
+            self._ana_status.config(
+                text=f"✓  Correct! ({self.state.anagram_word.upper()})  Next word...",
+                fg=GREEN)
+            self.root.after(1200, self._show_anagram)
 
-    #  tic tac toe 
+    else:
+        self.state.anagram_tries += 1
+        rem = ANAGRAM_ATTEMPTS - self.state.anagram_tries
 
-    def _show_ttt(self):
-        self.state.stage     = "TTT"
-        self.state.ttt_board = [""] * 9
-        self._ttt_over       = False
-        self._clear()
+        self._ana_dots.config(
+            text=("◆  " * rem + "◇  " * self.state.anagram_tries).strip())
 
-        avail = self._sh - 160
-        CELL  = max(90, min(170, avail // 3))
-        PAD   = 14
-        self._CELL, self._PAD = CELL, PAD
+        if self.state.anagram_tries >= ANAGRAM_ATTEMPTS:
+            self._ana_status.config(
+                text=f"✗  Failed.  Word was: {self.state.anagram_word.upper()}",
+                fg=RED)
 
-        c = self._C()
-        tk.Label(c, text="C H A P T E R   I V  —  M I N D   G A M E S",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
-        tk.Label(c,
-                 text=(
-                     '"Brains over brawn — that has always been my motto.'
-                     " Now we play a gentleman's game.  Beat me at Tic Tac Toe"
-                     ' and I will hand you the next digit of the code.'
-                     ' Lose, and Gotham pays the price.  I never play fair."'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 13),
-                 justify="center").pack(pady=(0,6))
-        tk.Label(c, text="T I C   T A C   T O E",
-                 fg=GREEN, bg=BG, font=("Courier New", 24, "bold")).pack(pady=(0, 2))
-        tk.Label(c, text="You are  X  ·  Riddler is  O  ·  WIN to earn the digit  ·  Draws cost nothing",
-                 fg=CYAN, bg=BG, font=("Courier New", 13)).pack(pady=(2, 10))
+            if self._strike("Anagram failed!"):
+                self.root.after(2400, self._show_anagram)
 
-        size = CELL * 3 + PAD * 2
-        self._ttt_canvas = tk.Canvas(c, width=size, height=size,
-                                     bg=INPUT_BG,
-                                     highlightthickness=2, highlightbackground=GREEN)
-        self._ttt_canvas.pack()
-        self._ttt_canvas.bind("<Button-1>", lambda e: self._ttt_click(e, CELL, PAD))
+        else:
+            self._ana_status.config(
+                text=f"✗  Wrong.  {rem} attempt{'s' if rem != 1 else ''} left.",
+                fg=RED)
+            self._ana_entry.focus()
 
-        self._ttt_status = tk.Label(c, text="Your move",
-                                    fg=GREEN, bg=BG, font=("Courier New", 15))
-        self._ttt_status.pack(pady=12)
-        self._ttt_draw_grid(CELL, PAD)
 
-    def _ttt_draw_grid(self, C, P):
-        cv = self._ttt_canvas
-        cv.delete("all")
-        for i in range(1, 3):
-            cv.create_line(P, P+i*C, P+3*C, P+i*C, fill=GREEN, width=3)
-            cv.create_line(P+i*C, P, P+i*C, P+3*C, fill=GREEN, width=3)
+# tic tac toe setup screen
+def _show_ttt(self):
+    self.state.stage = "TTT"
+    self.state.ttt_board = [""] * 9
+    self._ttt_over = False
+    self._clear()
 
-    def _ttt_centre(self, idx):
-        C, P = self._CELL, self._PAD
-        r, col = divmod(idx, 3)
-        return P + col*C + C//2, P + r*C + C//2
+    avail = self._sh - 160
+    CELL = max(90, min(170, avail // 3))
+    PAD = 14
+    self._CELL, self._PAD = CELL, PAD
 
-    def _ttt_draw_x(self, idx):
-        cx, cy = self._ttt_centre(idx)
-        m = max(28, self._CELL // 4)
-        self._ttt_canvas.create_line(cx-m, cy-m, cx+m, cy+m, fill=RED, width=7, capstyle="round")
-        self._ttt_canvas.create_line(cx+m, cy-m, cx-m, cy+m, fill=RED, width=7, capstyle="round")
+    c = self._C()
 
-    def _ttt_draw_o(self, idx):
-        cx, cy = self._ttt_centre(idx)
-        r = max(28, self._CELL // 3)
-        self._ttt_canvas.create_oval(cx-r, cy-r, cx+r, cy+r, outline=CYAN, width=7)
+    tk.Label(c, text="C H A P T E R   I V  —  M I N D   G A M E S",
+             fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
 
-    def _ttt_draw_win_line(self, line):
-        x1, y1 = self._ttt_centre(line[0])
-        x2, y2 = self._ttt_centre(line[2])
-        self._ttt_canvas.create_line(x1, y1, x2, y2, fill=GREEN, width=6, dash=(14, 6))
+    tk.Label(c,
+             text=(
+                 '"Brains over brawn — that has always been my motto.'
+                 " Now we play a gentleman's game.  Beat me at Tic Tac Toe"
+                 ' and I will hand you the next digit of the code.'
+                 ' Lose, and Gotham pays the price.  I never play fair."'
+                 "— The Riddler"
+             ),
+             fg="white", bg=BG, font=("Courier New", 13),
+             justify="center").pack(pady=(0,6))
 
-    def _ttt_click(self, event, C, P):
-        if self._ttt_over: return
-        col = (event.x - P) // C
-        row = (event.y - P) // C
-        if not (0 <= col < 3 and 0 <= row < 3): return
-        idx = row * 3 + col
-        if self.state.ttt_board[idx]: return
+    tk.Label(c, text="T I C   T A C   T O E",
+             fg=GREEN, bg=BG, font=("Courier New", 24, "bold")).pack(pady=(0, 2))
 
-        self.state.ttt_board[idx] = "X"
-        self._ttt_draw_x(idx)
+    tk.Label(c,
+             text="You are  X  ·  Riddler is  O  ·  WIN to earn the digit  ·  Draws cost nothing",
+             fg=CYAN, bg=BG, font=("Courier New", 13)).pack(pady=(2, 10))
 
-        if _ttt_winner(self.state.ttt_board, "X"):
-            self._ttt_over = True
-            self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "X"))
-            play_correct()
-            self._set_code(f"{self._d[0]}{self._d[1]}__")
-            self._ttt_status.config(text=f"YOU WIN!  Digit: {self._d[1]}", fg=GREEN)
-            self.root.after(1800, self._show_wordle)
-            return
-        if all(self.state.ttt_board):
-            self._ttt_over = True
-            self._ttt_status.config(text="DRAW — no strike, try again!", fg=YELLOW)
-            self.root.after(1400, self._show_ttt)
-            return
+    size = CELL * 3 + PAD * 2
 
-        self._ttt_status.config(text="Riddler is thinking...", fg=DIM)
-        self.root.after(380, self._ttt_ai_move)
+    self._ttt_canvas = tk.Canvas(
+        c,
+        width=size,
+        height=size,
+        bg=INPUT_BG,
+        highlightthickness=2,
+        highlightbackground=GREEN)
+    self._ttt_canvas.pack()
 
-    def _ttt_ai_move(self):
-        move = _best_move(self.state.ttt_board)
-        if move is None: return
-        self.state.ttt_board[move] = "O"
-        self._ttt_draw_o(move)
-        if _ttt_winner(self.state.ttt_board, "O"):
-            self._ttt_over = True
-            self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "O"))
-            self._ttt_status.config(text="RIDDLER WINS.  Strike.", fg=RED)
-            if self._strike("The Riddler won Tic Tac Toe!"):
-                self.root.after(2400, self._show_ttt)
-            return
-        if all(self.state.ttt_board):
-            self._ttt_over = True
-            self._ttt_status.config(text="DRAW — no strike, try again!", fg=YELLOW)
-            self.root.after(1400, self._show_ttt)
-            return
-        self._ttt_status.config(text="Your move", fg=GREEN)
+    self._ttt_canvas.bind("<Button-1>", lambda e: self._ttt_click(e, CELL, PAD))
 
-    # WORDLE 
+    self._ttt_status = tk.Label(c, text="Your move",
+                                fg=GREEN, bg=BG, font=("Courier New", 15))
+    self._ttt_status.pack(pady=12)
 
-    def _show_wordle(self):
-        self.state.stage     = "WORDLE"
-        pool                 = [w for w in WORD_BANK if w != self.state.w_secret]
-        self.state.w_secret  = random.choice(pool)
-        self.state.w_attempt = 0
-        self.state.w_current = ""
-        self._w_over         = False
-        self._w_key_map      = {}
-        self._clear()
+    self._ttt_draw_grid(CELL, PAD)
 
-        tile_sz   = max(36, min(62, (self._sh - 220) // WORDLE_ROWS))
-        tile_font = max(13, tile_sz // 2)
-        key_h     = 1 if tile_sz < 50 else 2
+   # draw tic tac toe grid
+def _ttt_draw_grid(self, C, P):
+    cv = self._ttt_canvas
+    cv.delete("all")
+    for i in range(1, 3):
+        cv.create_line(P, P+i*C, P+3*C, P+i*C, fill=GREEN, width=3)
+        cv.create_line(P+i*C, P, P+i*C, P+3*C, fill=GREEN, width=3)
 
-        c = self._C()
-        tk.Label(c, text="C H A P T E R   V  —  T H E   H I D D E N   W O R D",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
-        tk.Label(c,
-                 text=(
-                     '"You are better than I expected.  I am almost impressed.'
-                     " I have encoded the third digit of the bomb's disarm code"
-                     " inside a five-letter word.  Crack it in six tries"
-                     ' and I will give you the piece you need.'
-                     ' Fail, and Gotham is one step closer to ash."'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 13),
-                 justify="center").pack(pady=(0,6))
-        tk.Label(c, text="W O R D L E",
-                 fg=GREEN, bg=BG, font=("Courier New", 22, "bold")).pack(pady=(0, 2))
-        tk.Label(c, text=f"Guess the {WORDLE_COLS}-letter word  ·  {WORDLE_ROWS} attempts  ·  Green = correct  ·  Yellow = wrong place",
-                 fg=CYAN, bg=BG, font=("Courier New", 12)).pack(pady=(2, 8))
 
-        grid_frame = tk.Frame(c, bg=BG)
-        grid_frame.pack()
-        self._w_tiles = []
-        for r in range(WORDLE_ROWS):
-            row = []
-            for col in range(WORDLE_COLS):
-                cell = tk.Frame(grid_frame, width=tile_sz, height=tile_sz,
-                                bg=T_EMPTY_BG,
-                                highlightbackground=T_EMPTY_FG, highlightthickness=2)
-                cell.grid(row=r, column=col, padx=3, pady=3)
-                cell.pack_propagate(False)
-                lbl = tk.Label(cell, text="", fg=T_TEXT, bg=T_EMPTY_BG,
-                               font=("Courier New", tile_font, "bold"))
-                lbl.pack(expand=True)
-                row.append({"f": cell, "l": lbl})
-            self._w_tiles.append(row)
+# get center position of a cell
+def _ttt_centre(self, idx):
+    C, P = self._CELL, self._PAD
+    r, col = divmod(idx, 3)
+    return P + col*C + C//2, P + r*C + C//2
 
-        self._w_status = tk.Label(c, text="", fg=YELLOW, bg=BG, font=("Courier New", 13))
-        self._w_status.pack(pady=6)
 
-        kb = tk.Frame(c, bg=BG)
-        kb.pack()
-        for row_keys in KB_ROWS:
-            rf = tk.Frame(kb, bg=BG)
+# draw X on board
+def _ttt_draw_x(self, idx):
+    cx, cy = self._ttt_centre(idx)
+    m = max(28, self._CELL // 4)
+    self._ttt_canvas.create_line(cx-m, cy-m, cx+m, cy+m, fill=RED, width=7, capstyle="round")
+    self._ttt_canvas.create_line(cx+m, cy-m, cx-m, cy+m, fill=RED, width=7, capstyle="round")
+
+
+# draw O on board
+def _ttt_draw_o(self, idx):
+    cx, cy = self._ttt_centre(idx)
+    r = max(28, self._CELL // 3)
+    self._ttt_canvas.create_oval(cx-r, cy-r, cx+r, cy+r, outline=CYAN, width=7)
+
+
+# draw winning line
+def _ttt_draw_win_line(self, line):
+    x1, y1 = self._ttt_centre(line[0])
+    x2, y2 = self._ttt_centre(line[2])
+    self._ttt_canvas.create_line(x1, y1, x2, y2, fill=GREEN, width=6, dash=(14, 6))
+
+
+# handle player click
+def _ttt_click(self, event, C, P):
+    if self._ttt_over: return
+
+    col = (event.x - P) // C
+    row = (event.y - P) // C
+    if not (0 <= col < 3 and 0 <= row < 3): return
+
+    idx = row * 3 + col
+    if self.state.ttt_board[idx]: return
+
+    self.state.ttt_board[idx] = "X"
+    self._ttt_draw_x(idx)
+
+    if _ttt_winner(self.state.ttt_board, "X"):
+        self._ttt_over = True
+        self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "X"))
+        play_correct()
+        self._set_code(f"{self._d[0]}{self._d[1]}__")
+        self._ttt_status.config(text=f"YOU WIN!  Digit: {self._d[1]}", fg=GREEN)
+        self.root.after(1800, self._show_wordle)
+        return
+
+    if all(self.state.ttt_board):
+        self._ttt_over = True
+        self._ttt_status.config(text="DRAW — no strike, try again!", fg=YELLOW)
+        self.root.after(1400, self._show_ttt)
+        return
+
+    self._ttt_status.config(text="Riddler is thinking...", fg=DIM)
+    self.root.after(380, self._ttt_ai_move)
+
+
+# ai move logic
+def _ttt_ai_move(self):
+    move = _best_move(self.state.ttt_board)
+    if move is None: return
+
+    self.state.ttt_board[move] = "O"
+    self._ttt_draw_o(move)
+
+    if _ttt_winner(self.state.ttt_board, "O"):
+        self._ttt_over = True
+        self._ttt_draw_win_line(_ttt_win_line(self.state.ttt_board, "O"))
+        self._ttt_status.config(text="RIDDLER WINS.  Strike.", fg=RED)
+        if self._strike("The Riddler won Tic Tac Toe!"):
+            self.root.after(2400, self._show_ttt)
+        return
+
+    if all(self.state.ttt_board):
+        self._ttt_over = True
+        self._ttt_status.config(text="DRAW — no strike, try again!", fg=YELLOW)
+        self.root.after(1400, self._show_ttt)
+        return
+
+    self._ttt_status.config(text="Your move", fg=GREEN)
+
+
+# wordle setup screen
+def _show_wordle(self):
+    self.state.stage = "WORDLE"
+    pool = [w for w in WORD_BANK if w != self.state.w_secret]
+    self.state.w_secret = random.choice(pool)
+    self.state.w_attempt = 0
+    self.state.w_current = ""
+    self._w_over = False
+    self._w_key_map = {}
+    self._clear()
+
+    tile_sz = max(36, min(62, (self._sh - 220) // WORDLE_ROWS))
+    tile_font = max(13, tile_sz // 2)
+    key_h = 1 if tile_sz < 50 else 2
+
+    c = self._C()
+
+    tk.Label(c, text="C H A P T E R   V  —  T H E   H I D D E N   W O R D",
+             fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
+
+    tk.Label(c,
+             text=(
+                 '"You are better than I expected.  I am almost impressed.'
+                 " I have encoded the third digit of the bomb's disarm code"
+                 " inside a five-letter word.  Crack it in six tries"
+                 ' and I will give you the piece you need.'
+                 ' Fail, and Gotham is one step closer to ash."'
+                 "— The Riddler"
+             ),
+             fg="white", bg=BG, font=("Courier New", 13),
+             justify="center").pack(pady=(0,6))
+
+    tk.Label(c, text="W O R D L E",
+             fg=GREEN, bg=BG, font=("Courier New", 22, "bold")).pack(pady=(0, 2))
+
+    tk.Label(c,
+             text=f"Guess the {WORDLE_COLS}-letter word  ·  {WORDLE_ROWS} attempts  ·  Green = correct  ·  Yellow = wrong place",
+             fg=CYAN, bg=BG, font=("Courier New", 12)).pack(pady=(2, 8))
+
+
+# wordle input handling
+def _w_kb(self, key):
+    if self._w_over: return
+    if key == "ENTER": self._w_submit()
+    elif key == "⌫": self._w_backspace()
+    elif len(key) == 1: self._w_add(key)
+
+
+# keyboard typing
+def _w_keypress(self, event):
+    if self._w_over: return
+    if event.char.isalpha():
+        self._w_add(event.char.lower())
+
+
+# add letter to word
+def _w_add(self, ch):
+    if len(self.state.w_current) < WORDLE_COLS:
+        self.state.w_current += ch
+
+
+# remove letter
+def _w_backspace(self):
+    if self.state.w_current:
+        self.state.w_current = self.state.w_current[:-1]
+
+
+# submit word guess
+def _w_submit(self):
+    guess = self.state.w_current.lower()
+
+    # handle wire selection
+def _toggle_wire(self, num):
+    if num in self.state.wire_pulled:
+        self.state.wire_pulled.remove(num)
+        wc = WIRE_COLORS[num-1]
+        self._wire_btns[num-1].config(
+            bg=wc,
+            fg=BG if wc != "#EEEEEE" else "#111")
+    else:
+        self.state.wire_pulled.append(num)
+        self._wire_btns[num-1].config(bg=DIM, fg="#999")
+
+    pulled = sorted(self.state.wire_pulled)
+    self._wire_status.config(
+        text=f"Pulled: {pulled if pulled else 'none'}", fg=YELLOW)
+
+    if pulled == sorted(WIRES_TARGET):
+        play_correct()
+        self._wire_status.config(text="✓  Correct wires!", fg=GREEN)
+        self.state.stage = "FINAL"
+        self.root.after(800, self._wires_solved)
+    elif len(pulled) >= len(WIRES_TARGET) and pulled != sorted(WIRES_TARGET):
+        self._wire_status.config(text="✗  Wrong wires!", fg=RED)
+        if self._strike("Wrong wires pulled!"):
+            self.root.after(2400, self._show_wires)
+
+
+# move to final code screen
+def _wires_solved(self):
+    self._set_code(self._final_code)
+    self._show_final()
+
+
+# final code screen
+def _show_final(self):
+    self.state.stage = "FINAL"
+    self.state.kp_input = ""
+    self._clear()
+    c = self._C()
+
+    tk.Label(c, text="C H A P T E R   V I I  —  D E F U S E",
+             fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
+
+    tk.Label(c,
+             text=(
+                 '"You found the wires.  You found all four digits.'
+                 " Now comes the moment of truth."
+                 " Enter the complete four-digit code into the keypad"
+                 " and the bomb will stand down."
+                 " Get it wrong and Gotham is gone."
+                 ' The clock is running.  Every second counts."'
+                 "— The Riddler"
+             ),
+             fg="white", bg=BG, font=("Courier New", 13),
+             justify="center").pack(pady=(0,8))
+
+    tk.Label(c, text="▸  ENTER THE 4-DIGIT DISARM CODE  ◂",
+             fg=RED, bg=BG, font=("Courier New", 20, "bold")).pack(pady=(0,4))
+
+    tk.Label(c, text=f"Final digit revealed: {self._d[3]}     Full code assembled: {self._final_code}",
+             fg=CYAN, bg=BG, font=("Courier New", 14)).pack(pady=(0,6))
+
+    self._kp_display = tk.Label(c, text="_ _ _ _",
+                                fg=GREEN, bg=BG,
+                                font=("Courier New", 52, "bold"))
+    self._kp_display.pack(pady=16)
+
+    self._kp_status = tk.Label(c, text="", fg=RED, bg=BG, font=("Courier New", 15))
+    self._kp_status.pack(pady=4)
+
+    if not RPi:
+        pad = tk.Frame(c, bg=BG)
+        pad.pack(pady=8)
+
+        for row in [["1","2","3"],["4","5","6"],["7","8","9"],["*","0","#"]]:
+            rf = tk.Frame(pad, bg=BG)
             rf.pack()
-            for key in row_keys:
-                w = 5 if len(key) == 1 else 7
-                lbl = tk.Label(rf, text=key.upper(), fg=T_TEXT, bg=T_ABSENT,
-                               font=("Courier New", 11, "bold"), width=w, height=key_h)
-                lbl.pack(side="left", padx=2, pady=2)
-                lbl.bind("<Button-1>", lambda e, k=key: self._w_kb(k))
-                if len(key) == 1:
-                    self._w_key_map[key] = lbl
 
-        self.root.bind("<Key>",       self._w_keypress)
-        self.root.bind("<Return>",    lambda e: self._w_submit())
-        self.root.bind("<BackSpace>", lambda e: self._w_backspace())
+            for k in row:
+                tk.Button(rf, text=k,
+                          fg=GREEN, bg=INPUT_BG,
+                          activeforeground=CYAN, activebackground="#1A1A2E",
+                          font=("Courier New", 18, "bold"),
+                          width=4, height=2, relief="flat",
+                          highlightthickness=1, highlightbackground=DIM,
+                          command=lambda k=k: self._keypad_key(k)).pack(
+                              side="left", padx=4, pady=4)
 
-    def _w_kb(self, key):
-        if self._w_over: return
-        if key == "ENTER":  self._w_submit()
-        elif key == "⌫":   self._w_backspace()
-        elif len(key) == 1: self._w_add(key)
+        self.root.bind("<Key>", self._final_keypress)
 
-    def _w_keypress(self, event):
-        if self._w_over: return
-        if event.char.isalpha(): self._w_add(event.char.lower())
 
-    def _w_add(self, ch):
-        if len(self.state.w_current) < WORDLE_COLS:
-            self.state.w_current += ch
-            col  = len(self.state.w_current) - 1
-            tile = self._w_tiles[self.state.w_attempt][col]
-            tile["l"].config(text=ch.upper())
-            tile["f"].config(highlightbackground=CYAN)
+# handle keyboard input for final code
+def _final_keypress(self, event):
+    ch = event.char
 
-    def _w_backspace(self):
-        if self.state.w_current:
-            col  = len(self.state.w_current) - 1
-            tile = self._w_tiles[self.state.w_attempt][col]
-            tile["l"].config(text="")
-            tile["f"].config(highlightbackground=T_EMPTY_FG)
-            self.state.w_current = self.state.w_current[:-1]
-
-    def _w_submit(self):
-        guess = self.state.w_current.lower()
-        if len(guess) < WORDLE_COLS:
-            self._w_status.config(text=f"Need {WORDLE_COLS} letters!", fg=RED)
-            return
-        self._w_status.config(text="")
-
-        result  = ["absent"] * WORDLE_COLS
-        s_count = {}
-        for i, (g, s) in enumerate(zip(guess, self.state.w_secret)):
-            if g == s:  result[i] = "correct"
-            else:       s_count[s] = s_count.get(s, 0) + 1
-        for i, g in enumerate(guess):
-            if result[i] != "correct" and s_count.get(g, 0) > 0:
-                result[i] = "present"
-                s_count[g] -= 1
-
-        cmap = {"correct": T_CORRECT, "present": T_PRESENT, "absent": T_ABSENT}
-        prio = {T_CORRECT: 2, T_PRESENT: 1, T_ABSENT: 0}
-
-        for col, (letter, status) in enumerate(zip(guess, result)):
-            bg   = cmap[status]
-            tile = self._w_tiles[self.state.w_attempt][col]
-            tile["l"].config(bg=bg, fg=T_TEXT)
-            tile["f"].config(bg=bg, highlightbackground=bg)
-            if letter in self._w_key_map:
-                lbl = self._w_key_map[letter]
-                cur = lbl.cget("bg")
-                if prio.get(bg, 0) > prio.get(cur, -1):
-                    lbl.config(bg=bg)
-
-        self.state.w_attempt += 1
-        self.state.w_current  = ""
-
-        if guess == self.state.w_secret:
-            play_correct()
-            self._w_over = True
-            self._set_code(f"{self._d[0]}{self._d[1]}{self._d[2]}_")
-            self._w_status.config(text=f"✓  CORRECT!  Digit: {self._d[2]}", fg=GREEN)
-            self.root.after(1800, self._show_wires)
-            return
-        if self.state.w_attempt >= WORDLE_ROWS:
-            self._w_over = True
-            self._w_status.config(
-                text=f"✗  FAILED — Word was: {self.state.w_secret.upper()}", fg=RED)
-            if self._strike("Wordle failed!"):
-                self.root.after(2400, self._show_wordle)
-            return
-        rem = WORDLE_ROWS - self.state.w_attempt
-        self._w_status.config(
-            text=f"{rem} attempt{'s' if rem != 1 else ''} remaining", fg=YELLOW)
-
-    #  WIRES 
-
-    def _show_wires(self):
-        self.state.stage       = "WIRES"
-        self.state.wire_pulled = []
-        self._clear()
-        c = self._C()
-        tk.Label(c, text="C H A P T E R   V I  —  T H E   F I N A L   C L U E",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
-        tk.Label(c,
-                 text=(
-                     '"You have come so far.  I almost respect you.'
-                     " The last digit of the disarm code is hidden inside"
-                     " the bomb's wiring panel.  To access it you must go to"
-                     " the  6 T H  F L O O R  SKY STUDY ROOM —"
-                     " the one where water drips from the faucet,"
-                     " where nobody thinks to look."
-                     " The wire colors are there, waiting."
-                     ' Cut the correct ones and Gotham lives.'
-                     ' Cut the wrong ones and...  well.  Tick tock."'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 13),
-                 justify="center").pack(pady=(0,8))
-        tk.Label(c, text="▸  6TH FLOOR · SKY STUDY ROOM · WHERE WATER DRIPS  ◂",
-                 fg=YELLOW, bg=BG, font=("Courier New", 15, "bold")).pack(pady=4)
-        tk.Label(c, text="Pull the correct 2 wires to unlock the final digit",
-                 fg=CYAN, bg=BG, font=("Courier New", 13)).pack(pady=4)
-
-        if not RPi:
-            tk.Label(c, text="Click two wires to pull them",
-                     fg=DIM, bg=BG, font=("Courier New", 11)).pack(pady=(14, 8))
-            row = tk.Frame(c, bg=BG)
-            row.pack(pady=8)
-            self._wire_btns = []
-            wire_labels = ["RED", "WHITE", "BLUE", "GREEN", "YELLOW"]
-            for i, wc in enumerate(WIRE_COLORS):
-                num = i + 1
-                text_col = BG if wc != "#EEEEEE" else "#111"
-                b = tk.Button(row,
-                              text=f"WIRE {num}\n{wire_labels[i]}",
-                              fg=text_col, bg=wc,
-                              activeforeground=BG, activebackground=wc,
-                              font=("Courier New", 13, "bold"),
-                              width=9, height=3, relief="flat",
-                              command=lambda n=num: self._toggle_wire(n))
-                b.pack(side="left", padx=10)
-                self._wire_btns.append(b)
-            self._wire_status = tk.Label(c, text="No wires pulled.",
-                                         fg=DIM, bg=BG, font=("Courier New", 14))
-            self._wire_status.pack(pady=12)
-
-    def _toggle_wire(self, num):
-        if num in self.state.wire_pulled:
-            self.state.wire_pulled.remove(num)
-            wc = WIRE_COLORS[num-1]
-            self._wire_btns[num-1].config(
-                bg=wc,
-                fg=BG if wc != "#EEEEEE" else "#111")
-        else:
-            self.state.wire_pulled.append(num)
-            self._wire_btns[num-1].config(bg=DIM, fg="#999")
-
-        pulled = sorted(self.state.wire_pulled)
-        self._wire_status.config(
-            text=f"Pulled: {pulled if pulled else 'none'}", fg=YELLOW)
-
-        if pulled == sorted(WIRES_TARGET):
-            play_correct()
-            self._wire_status.config(text="✓  Correct wires!", fg=GREEN)
-            self.state.stage = "FINAL"
-            self.root.after(800, self._wires_solved)
-        elif len(pulled) >= len(WIRES_TARGET) and pulled != sorted(WIRES_TARGET):
-            self._wire_status.config(text="✗  Wrong wires!", fg=RED)
-            if self._strike("Wrong wires pulled!"):
-                self.root.after(2400, self._show_wires)
-
-    def _wires_solved(self):
-        self._set_code(self._final_code)
-        self._show_final()
-
-    # ── FINAL CODE ────────────────────────────────────────────────────────────
-
-    def _show_final(self):
-        self.state.stage    = "FINAL"
-        self.state.kp_input = ""
-        self._clear()
-        c = self._C()
-        tk.Label(c, text="C H A P T E R   V I I  —  D E F U S E",
-                 fg=DIM, bg=BG, font=("Courier New", 12, "italic")).pack(pady=(0,4))
-        tk.Label(c,
-                 text=(
-                     '"You found the wires.  You found all four digits.'
-                     " Now comes the moment of truth."
-                     " Enter the complete four-digit code into the keypad"
-                     " and the bomb will stand down."
-                     " Get it wrong and Gotham is gone."
-                     ' The clock is running.  Every second counts."'
-                     "— The Riddler"
-                 ),
-                 fg="white", bg=BG, font=("Courier New", 13),
-                 justify="center").pack(pady=(0,8))
-        tk.Label(c, text="▸  ENTER THE 4-DIGIT DISARM CODE  ◂",
-                 fg=RED, bg=BG, font=("Courier New", 20, "bold")).pack(pady=(0,4))
-        tk.Label(c, text=f"Final digit revealed: {self._d[3]}     Full code assembled: {self._final_code}",
-                 fg=CYAN, bg=BG, font=("Courier New", 14)).pack(pady=(0,6))
-
-        self._kp_display = tk.Label(c, text="_ _ _ _",
-                                    fg=GREEN, bg=BG,
-                                    font=("Courier New", 52, "bold"))
-        self._kp_display.pack(pady=16)
-        self._kp_status = tk.Label(c, text="", fg=RED, bg=BG, font=("Courier New", 15))
-        self._kp_status.pack(pady=4)
-
-        if not RPi:
-            pad = tk.Frame(c, bg=BG)
-            pad.pack(pady=8)
-            for row in [["1","2","3"],["4","5","6"],["7","8","9"],["*","0","#"]]:
-                rf = tk.Frame(pad, bg=BG)
-                rf.pack()
-                for k in row:
-                    tk.Button(rf, text=k,
-                              fg=GREEN, bg=INPUT_BG,
-                              activeforeground=CYAN, activebackground="#1A1A2E",
-                              font=("Courier New", 18, "bold"),
-                              width=4, height=2, relief="flat",
-                              highlightthickness=1, highlightbackground=DIM,
-                              command=lambda k=k: self._keypad_key(k)).pack(
-                                  side="left", padx=4, pady=4)
-            self.root.bind("<Key>", self._final_keypress)
-
-    def _final_keypress(self, event):
-        ch = event.char
-        if ch.isdigit():               self._keypad_key(ch)
-        elif ch == "*":                self._keypad_key("*")
-        elif event.keysym == "Return": self._keypad_key("#")
-        elif event.keysym == "BackSpace":
-            self.state.kp_input = self.state.kp_input[:-1]
-            self._refresh_kp()
-
-    def _keypad_key(self, key):
-        if key == "*":
-            self.state.kp_input = ""
-            self._kp_status.config(text="Cleared.", fg=DIM)
-        elif key == "#":
-            if self.state.kp_input == self._final_code:
-                self._kp_status.config(text="✓  CODE ACCEPTED", fg=GREEN)
-                self.root.after(1200, self._win)
-            else:
-                self.state.kp_input = ""
-                self._kp_status.config(text="✗  WRONG CODE", fg=RED)
-                self._strike("Wrong code entered!")
-        else:
-            if len(self.state.kp_input) < len(self._final_code):
-                self.state.kp_input += str(key)
+    if ch.isdigit():
+        self._keypad_key(ch)
+    elif ch == "*":
+        self._keypad_key("*")
+    elif event.keysym == "Return":
+        self._keypad_key("#")
+    elif event.keysym == "BackSpace":
+        self.state.kp_input = self.state.kp_input[:-1]
         self._refresh_kp()
 
-    def _refresh_kp(self):
-        filled = list(self.state.kp_input)
-        blanks = ["_"] * (len(self._final_code) - len(filled))
-        self._kp_display.config(text="  ".join(filled + blanks))
+
+# handle keypad buttons
+def _keypad_key(self, key):
+    if key == "*":
+        self.state.kp_input = ""
+        self._kp_status.config(text="Cleared.", fg=DIM)
+
+    elif key == "#":
+        if self.state.kp_input == self._final_code:
+            self._kp_status.config(text="✓  CODE ACCEPTED", fg=GREEN)
+            self.root.after(1200, self._win)
+        else:
+            self.state.kp_input = ""
+            self._kp_status.config(text="✗  WRONG CODE", fg=RED)
+            self._strike("Wrong code entered!")
+
+    else:
+        if len(self.state.kp_input) < len(self._final_code):
+            self.state.kp_input += str(key)
+
+    self._refresh_kp()
 
 
+# refresh keypad display
+def _refresh_kp(self):
+    filled = list(self.state.kp_input)
+    blanks = ["_"] * (len(self._final_code) - len(filled))
+    self._kp_display.config(text="  ".join(filled + blanks))
 
 
+# start program
 if __name__ == "__main__":
     root = tk.Tk()
     game = BombGame(root)
